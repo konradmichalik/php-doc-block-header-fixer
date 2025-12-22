@@ -3320,12 +3320,12 @@
             "version": "0.1.1",
             "source": {
                 "type": "git",
-                "url": "https://github.com/jackd248/php-cs-fixer-preset.git",
+                "url": "https://github.com/konradmichalik/php-cs-fixer-preset.git",
                 "reference": "600fc181ae51e8262afc122ee9f743e75193dbcb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/jackd248/php-cs-fixer-preset/zipball/600fc181ae51e8262afc122ee9f743e75193dbcb",
+                "url": "https://api.github.com/repos/konradmichalik/php-cs-fixer-preset/zipball/600fc181ae51e8262afc122ee9f743e75193dbcb",
                 "reference": "600fc181ae51e8262afc122ee9f743e75193dbcb",
                 "shasum": ""
             },
@@ -3368,8 +3368,8 @@
             ],
             "description": "Preset configuration for PHP-CS-Fixer",
             "support": {
-                "issues": "https://github.com/jackd248/php-cs-fixer-preset/issues",
-                "source": "https://github.com/jackd248/php-cs-fixer-preset/tree/0.1.1"
+                "issues": "https://github.com/konradmichalik/php-cs-fixer-preset/issues",
+                "source": "https://github.com/konradmichalik/php-cs-fixer-preset/tree/0.1.1"
             },
             "time": "2025-11-24T14:15:10+00:00"
         },
