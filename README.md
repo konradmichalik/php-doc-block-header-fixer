@@ -2,9 +2,9 @@
 
 # Php DocBlock Header Fixer
 
-[![Coverage](https://img.shields.io/coverallsCoverage/github/jackd248/php-doc-block-header-fixer?logo=coveralls)](https://coveralls.io/github/jackd248/php-doc-block-header-fixer)
-[![CGL](https://img.shields.io/github/actions/workflow/status/jackd248/php-doc-block-header-fixer/cgl.yml?label=cgl&logo=github)](https://github.com/jackd248/php-doc-block-header-fixer/actions/workflows/cgl.yml)
-[![Tests](https://img.shields.io/github/actions/workflow/status/jackd248/php-doc-block-header-fixer/tests.yml?label=tests&logo=github)](https://github.com/jackd248/php-doc-block-header-fixer/actions/workflows/tests.yml)
+[![Coverage](https://img.shields.io/coverallsCoverage/github/konradmichalik/php-doc-block-header-fixer?logo=coveralls)](https://coveralls.io/github/konradmichalik/php-doc-block-header-fixer)
+[![CGL](https://img.shields.io/github/actions/workflow/status/konradmichalik/php-doc-block-header-fixer/cgl.yml?label=cgl&logo=github)](https://github.com/konradmichalik/php-doc-block-header-fixer/actions/workflows/cgl.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/konradmichalik/php-doc-block-header-fixer/tests.yml?label=tests&logo=github)](https://github.com/konradmichalik/php-doc-block-header-fixer/actions/workflows/tests.yml)
 [![Supported PHP Versions](https://img.shields.io/packagist/dependency-v/konradmichalik/php-doc-block-header-fixer/php?logo=php)](https://packagist.org/packages/konradmichalik/php-doc-block-header-fixer)
 
 </div>
