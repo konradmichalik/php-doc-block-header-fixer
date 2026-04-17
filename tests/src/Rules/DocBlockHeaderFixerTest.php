@@ -173,7 +173,7 @@ final class DocBlockHeaderFixerTest extends TestCase
 
         self::assertCount(5, $options);
 
-        $optionNames = array_map(fn ($option) => $option->getName(), $options);
+        $optionNames = array_map(static fn ($option) => $option->getName(), $options);
         self::assertContains('annotations', $optionNames);
         self::assertContains('preserve_existing', $optionNames);
         self::assertContains('separate', $optionNames);
