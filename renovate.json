@@ -2,5 +2,8 @@
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
 	"extends": [
 		"github>konradmichalik/renovate-config"
-	]
+	],
+	"constraints": {
+		"php": ">=8.2"
+	}
 }
