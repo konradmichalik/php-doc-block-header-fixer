@@ -11,8 +11,8 @@ Thank you for considering contributing to this project! Every contribution is we
 
 ```bash
 # Clone repository
-git clone https://github.com/move-elevator/composer-translation-validator.git
-cd composer-translation-validator
+git clone https://github.com/konradmichalik/php-doc-block-header-fixer.git
+cd php-doc-block-header-fixer
 
 # Install dependencies
 composer install
