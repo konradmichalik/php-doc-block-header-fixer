@@ -228,6 +228,45 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertSame('MIT', $result['license']);
     }
 
+    public function testParseExistingAnnotationsWithHyphenatedTags(): void
+    {
+        $method = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
+
+        $docBlock = "/**\n * @phpstan-type BakedRoute array{path: string, methods: list<string>}\n * @phpstan-import-type BakedRoute from Router\n * @author Konrad Michalik <hej@example.com>\n */";
+        $result = $method->invoke($this->fixer, $docBlock);
+
+        self::assertSame('BakedRoute array{path: string, methods: list<string>}', $result['phpstan-type']);
+        self::assertSame('BakedRoute from Router', $result['phpstan-import-type']);
+        self::assertSame('Konrad Michalik <hej@example.com>', $result['author']);
+    }
+
+    public function testParseExistingAnnotationsWithMultipleHyphenatedTags(): void
+    {
+        $method = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
+
+        $docBlock = "/**\n * @phpstan-type Foo array{a: int}\n * @phpstan-type Bar array{b: string}\n */";
+        $result = $method->invoke($this->fixer, $docBlock);
+
+        self::assertIsArray($result['phpstan-type']);
+        self::assertCount(2, $result['phpstan-type']);
+        self::assertSame('Foo array{a: int}', $result['phpstan-type'][0]);
+        self::assertSame('Bar array{b: string}', $result['phpstan-type'][1]);
+    }
+
+    public function testPreserveExistingKeepsHyphenatedTags(): void
+    {
+        $code = "<?php\n/**\n * Foo.\n *\n * @phpstan-type BakedRoute array{path: string, methods: list<string>}\n * @phpstan-import-type BakedRoute from Router\n * @author Konrad Michalik <hej@example.com>\n */\nfinal class Foo {}";
+        $tokens = Tokens::fromCode($code);
+
+        $this->fixer->configure(['preserve_existing' => true]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        $result = $tokens->generateCode();
+        self::assertStringContainsString('@phpstan-type BakedRoute array{path: string, methods: list<string>}', $result);
+        self::assertStringContainsString('@phpstan-import-type BakedRoute from Router', $result);
+        self::assertStringContainsString('@author Konrad Michalik <hej@example.com>', $result);
+    }
+
     public function testParseExistingAnnotationsWithDuplicateEmptyValues(): void
     {
         $method = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
@@ -407,6 +446,93 @@ final class DocBlockHeaderFixerTest extends TestCase
 
         self::assertStringContainsString('@license MIT', $tokens->generateCode());
         self::assertStringContainsString('@author John Doe', $tokens->generateCode());
+    }
+
+    public function testMergeWithExistingDocBlockPreservesHyphenatedTags(): void
+    {
+        $code = "<?php\n/**\n * Foo.\n *\n * @phpstan-type BakedRoute array{path: string, methods: list<string>}\n * @phpstan-import-type BakedRoute from Router\n */\nfinal class Foo {}";
+        $tokens = Tokens::fromCode($code);
+        $annotations = ['author' => 'Konrad Michalik <hej@example.com>'];
+
+        $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
+
+        $this->fixer->configure(['preserve_existing' => true, 'add_structure_name' => true]);
+        $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
+
+        $result = $tokens->generateCode();
+        self::assertStringContainsString('@phpstan-type BakedRoute array{path: string, methods: list<string>}', $result);
+        self::assertStringContainsString('@phpstan-import-type BakedRoute from Router', $result);
+        self::assertStringContainsString('@author Konrad Michalik <hej@example.com>', $result);
+        // The existing "Foo." summary must not be duplicated.
+        self::assertSame(1, substr_count($result, 'Foo.'));
+    }
+
+    public function testMergeWithExistingDocBlockPreservesMultiLineTagValues(): void
+    {
+        $code = "<?php\n/**\n * @method int calculate(\n *     int \$a,\n *     int \$b\n * )\n */\nfinal class Foo {}";
+        $tokens = Tokens::fromCode($code);
+        $annotations = ['author' => 'John Doe'];
+
+        $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
+
+        $this->fixer->configure(['preserve_existing' => true]);
+        $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
+
+        $result = $tokens->generateCode();
+        // The complete multi-line @method signature must survive verbatim.
+        self::assertStringContainsString(" * @method int calculate(\n *     int \$a,\n *     int \$b\n * )", $result);
+        self::assertStringContainsString('@author John Doe', $result);
+    }
+
+    public function testMergeWithExistingDocBlockPreservesFreeTextDescription(): void
+    {
+        $code = "<?php\n/**\n * Foo.\n *\n * This is a long free-text description\n * spanning multiple lines that must be kept.\n */\nfinal class Foo {}";
+        $tokens = Tokens::fromCode($code);
+        $annotations = ['author' => 'John Doe'];
+
+        $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
+
+        $this->fixer->configure(['preserve_existing' => true, 'add_structure_name' => true]);
+        $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
+
+        $result = $tokens->generateCode();
+        self::assertStringContainsString('This is a long free-text description', $result);
+        self::assertStringContainsString('spanning multiple lines that must be kept.', $result);
+        self::assertStringContainsString('@author John Doe', $result);
+        self::assertSame(1, substr_count($result, 'Foo.'));
+    }
+
+    public function testMergeWithExistingDocBlockAddsArrayValuedAnnotation(): void
+    {
+        $code = "<?php\n/**\n * @license MIT\n */\nfinal class Foo {}";
+        $tokens = Tokens::fromCode($code);
+        $annotations = ['author' => ['John Doe <john@example.com>', 'Jane Smith <jane@example.com>']];
+
+        $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
+
+        $this->fixer->configure(['preserve_existing' => true]);
+        $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
+
+        $result = $tokens->generateCode();
+        self::assertStringContainsString('@license MIT', $result);
+        self::assertStringContainsString('@author John Doe <john@example.com>', $result);
+        self::assertStringContainsString('@author Jane Smith <jane@example.com>', $result);
+    }
+
+    public function testMergeWithExistingSingleLineDocBlockFallsBackToRebuild(): void
+    {
+        $code = '<?php /** @license MIT */ final class Foo {}';
+        $tokens = Tokens::fromCode($code);
+        $annotations = ['author' => 'John Doe'];
+
+        $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
+
+        $this->fixer->configure(['preserve_existing' => true]);
+        $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
+
+        $result = $tokens->generateCode();
+        self::assertStringContainsString('@license MIT', $result);
+        self::assertStringContainsString('@author John Doe', $result);
     }
 
     public function testReplaceDocBlock(): void

@@ -21,6 +21,8 @@ use PhpCsFixer\FixerDefinition\{FixerDefinition, FixerDefinitionInterface};
 use PhpCsFixer\Tokenizer\{Token, Tokens};
 use SplFileInfo;
 
+use function array_key_exists;
+use function count;
 use function in_array;
 use function is_array;
 
@@ -256,10 +258,18 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     private function mergeWithExistingDocBlock(Tokens $tokens, int $docBlockIndex, array $annotations, string $structureName): void
     {
         $existingContent = $tokens[$docBlockIndex]->getContent();
-        $existingAnnotations = $this->parseExistingAnnotations($existingContent);
-        $mergedAnnotations = $this->mergeAnnotations($existingAnnotations, $annotations);
 
-        $newDocBlock = $this->buildDocBlock($mergedAnnotations, $structureName);
+        // Surgically inject only the configured header annotations while keeping
+        // every existing line verbatim (hyphenated tags, multi-line tag values,
+        // free-text descriptions). Degenerate single-line DocBlocks that cannot be
+        // amended in place fall back to a parse + rebuild.
+        if (str_contains($existingContent, "\n")) {
+            $newDocBlock = $this->injectHeaderAnnotations($existingContent, $annotations, $structureName);
+        } else {
+            $mergedAnnotations = $this->mergeAnnotations($this->parseExistingAnnotations($existingContent), $annotations);
+            $newDocBlock = $this->buildDocBlock($mergedAnnotations, $structureName);
+        }
+
         $tokens[$docBlockIndex] = new Token([\T_DOC_COMMENT, $newDocBlock]);
 
         // Ensure there's proper spacing after existing DocBlock
@@ -267,6 +277,112 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         if ($ensureSpacing) {
             $this->ensureProperSpacingAfterDocBlock($tokens, $docBlockIndex);
         }
+    }
+
+    /**
+     * Inserts the configured header annotations into an existing multi-line DocBlock
+     * without rebuilding it, so unknown content is passed through unchanged.
+     *
+     * @param array<string, string|array<string>|null> $annotations
+     */
+    private function injectHeaderAnnotations(string $existingContent, array $annotations, string $structureName): string
+    {
+        $lines = explode("\n", $existingContent);
+
+        // Derive the indentation used for the DocBlock's " * " lines.
+        $indent = '';
+        foreach ($lines as $line) {
+            if (preg_match('/^(\s*)\*/', $line, $matches)) {
+                $indent = $matches[1];
+                break;
+            }
+        }
+        $prefix = $indent.'* ';
+
+        $existingTags = $this->parseExistingAnnotations($existingContent);
+
+        // Only add configured header annotations whose tag is not already present;
+        // existing annotations win and are never overwritten in preserve mode.
+        $linesToAdd = [];
+        foreach ($annotations as $tag => $value) {
+            if (array_key_exists($tag, $existingTags)) {
+                continue;
+            }
+            foreach ($this->formatAnnotationLines($tag, $value, $prefix) as $annotationLine) {
+                $linesToAdd[] = $annotationLine;
+            }
+        }
+
+        // Optionally prepend the structure name summary if it is not already there.
+        $summaryLines = [];
+        $addStructureName = $this->resolvedConfiguration['add_structure_name'] ?? false;
+        if ($addStructureName && '' !== $structureName && !$this->hasStructureNameSummary($lines, $structureName)) {
+            $summaryLines[] = rtrim($prefix.$structureName.'.');
+            $summaryLines[] = rtrim($indent.'*');
+        }
+
+        // Locate the opening "/**" and closing "*/" lines.
+        $openingIndex = 0;
+        foreach ($lines as $i => $line) {
+            if (str_contains($line, '/**')) {
+                $openingIndex = $i;
+                break;
+            }
+        }
+        $closingIndex = count($lines) - 1;
+        for ($i = count($lines) - 1; $i >= 0; --$i) {
+            if (str_contains($lines[$i], '*/')) {
+                $closingIndex = $i;
+                break;
+            }
+        }
+
+        // Insert the summary right after the opening line, tags right before "*/".
+        if ([] !== $summaryLines) {
+            array_splice($lines, $openingIndex + 1, 0, $summaryLines);
+            $closingIndex += count($summaryLines);
+        }
+        if ([] !== $linesToAdd) {
+            array_splice($lines, $closingIndex, 0, $linesToAdd);
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param string|array<string>|null $value
+     *
+     * @return array<string>
+     */
+    private function formatAnnotationLines(string $tag, string|array|null $value, string $prefix): array
+    {
+        if (is_array($value)) {
+            $lines = [];
+            foreach ($value as $singleValue) {
+                $lines[] = rtrim($prefix.'@'.$tag.('' !== $singleValue ? ' '.$singleValue : ''));
+            }
+
+            return $lines;
+        }
+
+        $value ??= '';
+
+        return [rtrim($prefix.'@'.$tag.('' !== $value ? ' '.$value : ''))];
+    }
+
+    /**
+     * @param array<string> $lines
+     */
+    private function hasStructureNameSummary(array $lines, string $structureName): bool
+    {
+        $needle = $structureName.'.';
+        foreach ($lines as $line) {
+            if (trim($line, " \t\r\n/*") === $needle) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -374,7 +490,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
 
         foreach ($lines as $line) {
             $line = trim($line, " \t\r\n/*");
-            if (preg_match('/^@(\w+)(?:\s+(.*))?$/', $line, $matches)) {
+            if (preg_match('/^@([a-zA-Z][\w-]*)(?:\s+(.*))?$/', $line, $matches)) {
                 $tag = $matches[1];
                 $value = $matches[2] ?? '';
 
