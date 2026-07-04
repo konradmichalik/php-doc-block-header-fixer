@@ -3,7 +3,7 @@
 	"description": "This package contains a PHP-CS-Fixer rule to automatically fix the class header regarding PHP DocBlocks.",
 	"license": "GPL-3.0-or-later",
 	"type": "library",
-	"version": "0.3.3",
+	"version": "0.3.4",
 	"keywords": [
 		"php",
 		"php-cs-fixer",
