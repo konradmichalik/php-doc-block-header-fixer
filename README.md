@@ -127,9 +127,9 @@ return (new PhpCsFixer\Config())
 ## ⚙️ Configuration
 
 - `annotations` (array): DocBlock annotations to add to classes
-- `preserve_existing` (boolean, default: true): Keep existing DocBlock annotations
+- `preserve_existing` (boolean, default: true): Keep everything the configuration does not mention (descriptions, other annotations, ordering). The configured annotations themselves are always enforced: an existing occurrence is rewritten to the configured value and duplicates of the same tag are collapsed. Set to `false` to discard the existing DocBlock entirely and rebuild it from the configuration.
 - `separate` (string, default: 'none'): Add blank lines ('top', 'bottom', 'both', 'none')
-- `add_structure_name` (boolean, default: false): Add class name as first line in DocBlock
+- `add_structure_name` (boolean, default: false): Add the structure name as first line in the DocBlock. An existing first line that consists of a bare identifier followed by a dot is treated as that slot and rewritten, so a renamed class does not accumulate its former name.
 - `ensure_spacing` (boolean, default: true): Ensure proper spacing after DocBlocks to prevent conflicts with PHP-CS-Fixer rules
 
 ## 🧑‍💻 Contributing
