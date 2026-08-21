@@ -1391,4 +1391,140 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertStringContainsString('@implements IteratorAggregate<int, string>', $result);
         self::assertStringContainsString('@author John Doe', $result);
     }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenLineCommentPrecedesClass(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n// phpcs:ignore Some.Sniff\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure([
+            'annotations' => ['author' => 'Jane Doe'],
+            'add_structure_name' => true,
+        ]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('@author Jane Doe', $result);
+        self::assertStringContainsString('// phpcs:ignore Some.Sniff', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenCommentPrecedesInterface(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n// note\ninterface Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('@author Jane Doe', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenCommentPrecedesTrait(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n// note\ntrait Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('@author Jane Doe', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenCommentPrecedesEnum(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n// note\nenum Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('@author Jane Doe', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenAttributeAndCommentPrecedeClass(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n#[Foo]\n// note\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('#[Foo]', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenInlineBlockCommentPrecedesClass(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n#[Foo] /* note */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('/* note */', $result);
+    }
+
+    public function testSkipsAnonymousClassWithCommentBeforeClassKeyword(): void
+    {
+        $code = "<?php\n\$object = new /* note */ class {};\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        self::assertSame($code, $tokens->generateCode());
+    }
+
+    public function testApplyFixInsertsDocBlockBelowFileHeaderComment(): void
+    {
+        $code = "<?php\n\n/*\n * This file is part of a package.\n */\n\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertStringContainsString(" */\n\n/**\n * @author Jane Doe\n */\nclass Demo {}", $result);
+    }
 }

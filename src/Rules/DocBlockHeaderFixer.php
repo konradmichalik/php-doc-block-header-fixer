@@ -153,8 +153,8 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
                 continue;
             }
 
-            // Skip modifiers that can appear between 'new' and 'class'
-            if ($token->isGivenKind([\T_FINAL, \T_READONLY])) {
+            // Skip comments and modifiers that can appear between 'new' and 'class'
+            if ($token->isGivenKind([\T_COMMENT, \T_FINAL, \T_READONLY])) {
                 continue;
             }
 
@@ -243,8 +243,10 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
                 return $i;
             }
 
+            // A comment says nothing about whether a DocBlock exists, so it must
+            // not end the search. findInsertPosition() deliberately differs.
             // If we hit any other meaningful token (except modifiers), stop looking
-            if (!$token->isGivenKind([\T_FINAL, \T_ABSTRACT, \T_READONLY])) {
+            if (!$token->isGivenKind([\T_COMMENT, \T_FINAL, \T_ABSTRACT, \T_READONLY])) {
                 break;
             }
         }
@@ -438,6 +440,11 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         $tokens->insertAt($insertIndex, $tokensToInsert);
     }
 
+    /**
+     * Comments terminate the backward walk on purpose: a preceding comment is
+     * indistinguishable from a file header comment, and a new DocBlock must not
+     * be placed above such a header.
+     */
     private function findInsertPosition(Tokens $tokens, int $structureIndex): int
     {
         $insertIndex = $structureIndex;
