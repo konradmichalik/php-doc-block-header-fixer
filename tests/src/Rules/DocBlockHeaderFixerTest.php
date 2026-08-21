@@ -1391,4 +1391,345 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertStringContainsString('@implements IteratorAggregate<int, string>', $result);
         self::assertStringContainsString('@author John Doe', $result);
     }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenLineCommentPrecedesClass(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n// phpcs:ignore Some.Sniff\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure([
+            'annotations' => ['author' => 'Jane Doe'],
+            'add_structure_name' => true,
+        ]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('@author Jane Doe', $result);
+        self::assertStringContainsString('// phpcs:ignore Some.Sniff', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenCommentPrecedesInterface(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n// note\ninterface Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('@author Jane Doe', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenCommentPrecedesTrait(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n// note\ntrait Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('@author Jane Doe', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenCommentPrecedesEnum(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n// note\nenum Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('@author Jane Doe', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenAttributeAndCommentPrecedeClass(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n#[Foo]\n// note\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('#[Foo]', $result);
+    }
+
+    public function testApplyFixMergesIntoExistingDocBlockWhenInlineBlockCommentPrecedesClass(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n */\n#[Foo] /* note */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '/**'));
+        self::assertStringContainsString('/* note */', $result);
+    }
+
+    public function testSkipsAnonymousClassWithCommentBeforeClassKeyword(): void
+    {
+        $code = "<?php\n\$object = new /* note */ class {};\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        self::assertSame($code, $tokens->generateCode());
+    }
+
+    public function testApplyFixInsertsDocBlockBelowFileHeaderComment(): void
+    {
+        $code = "<?php\n\n/*\n * This file is part of a package.\n */\n\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertStringContainsString(" */\n\n/**\n * @author Jane Doe\n */\nclass Demo {}", $result);
+    }
+
+    public function testApplyFixEnforcesConfiguredAnnotationAndStructureName(): void
+    {
+        $code = "<?php\n\n/**\n * OldName.\n *\n * @author Somebody Else <old@example.com>\n */\nclass Renamed {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure([
+            'annotations' => ['author' => 'Jane Doe <jane@example.com>'],
+            'add_structure_name' => true,
+        ]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $expected = "<?php\n\n/**\n * Renamed.\n *\n * @author Jane Doe <jane@example.com>\n */\nclass Renamed {}\n";
+        self::assertSame($expected, $tokens->generateCode());
+    }
+
+    public function testApplyFixCollapsesDuplicatedConfiguredAnnotation(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n *\n * @author Jane Doe <jane@example.com>\n * @author Jane Doe <jane@example.com>\n */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure([
+            'annotations' => ['author' => 'Jane Doe <jane@example.com>'],
+            'add_structure_name' => true,
+        ]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertSame(1, substr_count($result, '@author'));
+    }
+
+    public function testApplyFixEnforcesConfiguredAnnotationWithMultipleValues(): void
+    {
+        $code = "<?php\n\n/**\n * @author Somebody Else <old@example.com>\n */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure([
+            'annotations' => ['author' => ['Jane Doe <jane@example.com>', 'John Doe <john@example.com>']],
+        ]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertStringNotContainsString('Somebody Else', $result);
+        self::assertStringContainsString('@author Jane Doe <jane@example.com>', $result);
+        self::assertStringContainsString('@author John Doe <john@example.com>', $result);
+    }
+
+    public function testApplyFixKeepsDescriptionWhileEnforcingConfiguredAnnotation(): void
+    {
+        $code = "<?php\n\n/**\n * Demo.\n *\n * This class does something worth describing\n * across two lines.\n *\n * @author Somebody Else <old@example.com>\n */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure([
+            'annotations' => ['author' => 'Jane Doe <jane@example.com>'],
+            'add_structure_name' => true,
+        ]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertStringContainsString('This class does something worth describing', $result);
+        self::assertStringContainsString('across two lines.', $result);
+        self::assertStringContainsString('@author Jane Doe <jane@example.com>', $result);
+        self::assertStringNotContainsString('Somebody Else', $result);
+    }
+
+    public function testApplyFixKeepsUnconfiguredAnnotationsVerbatim(): void
+    {
+        $code = "<?php\n\n/**\n * @template T of object\n * @implements ArrayAccess<int, T>\n * @implements IteratorAggregate<int, T>\n * @author Somebody Else <old@example.com>\n */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe <jane@example.com>']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertStringContainsString('@template T of object', $result);
+        self::assertStringContainsString('@implements ArrayAccess<int, T>', $result);
+        self::assertStringContainsString('@implements IteratorAggregate<int, T>', $result);
+        self::assertStringContainsString('@author Jane Doe <jane@example.com>', $result);
+    }
+
+    public function testApplyFixKeepsPositionOfEnforcedAnnotation(): void
+    {
+        $code = "<?php\n\n/**\n * @author Somebody Else <old@example.com>\n * @license MIT\n */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe <jane@example.com>']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $expected = "<?php\n\n/**\n * @author Jane Doe <jane@example.com>\n * @license MIT\n */\nclass Demo {}\n";
+        self::assertSame($expected, $tokens->generateCode());
+    }
+
+    public function testApplyFixKeepsMultiLineDescriptionOfUnconfiguredAnnotation(): void
+    {
+        $code = "<?php\n\n/**\n * @param string \$value some very long\n *     description continued here\n * @author Somebody Else <old@example.com>\n */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe <jane@example.com>']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertStringContainsString('description continued here', $result);
+        self::assertStringContainsString('@author Jane Doe <jane@example.com>', $result);
+    }
+
+    public function testApplyFixDoesNotReplaceNonIdentifierSummaryLine(): void
+    {
+        $code = "<?php\n\n/**\n * Handles the import of legacy records.\n *\n * @author Jane Doe <jane@example.com>\n */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure([
+            'annotations' => ['author' => 'Jane Doe <jane@example.com>'],
+            'add_structure_name' => true,
+        ]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertStringContainsString('Handles the import of legacy records.', $result);
+        self::assertStringContainsString(' * Demo.', $result);
+    }
+
+    public function testApplyFixIsIdempotentWhenEnforcingAnnotations(): void
+    {
+        $code = "<?php\n\n/**\n * OldName.\n *\n * @author Somebody Else <old@example.com>\n */\nclass Renamed {}\n";
+        $configuration = [
+            'annotations' => ['author' => 'Jane Doe <jane@example.com>'],
+            'add_structure_name' => true,
+        ];
+        $file = new SplFileInfo(__FILE__);
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $tokens = Tokens::fromCode($code);
+        $this->fixer->configure($configuration);
+        $method->invoke($this->fixer, $file, $tokens);
+        $firstRun = $tokens->generateCode();
+
+        $tokens = Tokens::fromCode($firstRun);
+        $this->fixer->configure($configuration);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        self::assertSame($firstRun, $tokens->generateCode());
+    }
+
+    public function testApplyFixKeepsDocBlockIntactWhenAnnotationSitsOnOpeningLine(): void
+    {
+        $code = "<?php\n\n/** @author Somebody Else <old@example.com>\n * @license MIT\n */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe <jane@example.com>']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $result = $tokens->generateCode();
+
+        self::assertStringContainsString('/** @author Somebody Else <old@example.com>', $result);
+        self::assertStringContainsString(" */\nclass Demo {}", $result);
+        self::assertStringContainsString('@license MIT', $result);
+    }
+
+    public function testApplyFixDropsContinuationLinesOfEnforcedAnnotation(): void
+    {
+        $code = "<?php\n\n/**\n * @author Somebody Else <old@example.com>\n *   reachable via the old address\n * @license MIT\n */\nclass Demo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe <jane@example.com>']]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $expected = "<?php\n\n/**\n * @author Jane Doe <jane@example.com>\n * @license MIT\n */\nclass Demo {}\n";
+        self::assertSame($expected, $tokens->generateCode());
+    }
 }

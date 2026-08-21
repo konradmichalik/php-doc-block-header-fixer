@@ -21,7 +21,6 @@ use PhpCsFixer\FixerDefinition\{FixerDefinition, FixerDefinitionInterface};
 use PhpCsFixer\Tokenizer\{Token, Tokens};
 use SplFileInfo;
 
-use function array_key_exists;
 use function count;
 use function in_array;
 use function is_array;
@@ -153,8 +152,8 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
                 continue;
             }
 
-            // Skip modifiers that can appear between 'new' and 'class'
-            if ($token->isGivenKind([\T_FINAL, \T_READONLY])) {
+            // Skip comments and modifiers that can appear between 'new' and 'class'
+            if ($token->isGivenKind([\T_COMMENT, \T_FINAL, \T_READONLY])) {
                 continue;
             }
 
@@ -243,8 +242,10 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
                 return $i;
             }
 
+            // A comment says nothing about whether a DocBlock exists, so it must
+            // not end the search. findInsertPosition() deliberately differs.
             // If we hit any other meaningful token (except modifiers), stop looking
-            if (!$token->isGivenKind([\T_FINAL, \T_ABSTRACT, \T_READONLY])) {
+            if (!$token->isGivenKind([\T_COMMENT, \T_FINAL, \T_ABSTRACT, \T_READONLY])) {
                 break;
             }
         }
@@ -280,8 +281,17 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     }
 
     /**
-     * Inserts the configured header annotations into an existing multi-line DocBlock
+     * Injects the configured header annotations into an existing multi-line DocBlock
      * without rebuilding it, so unknown content is passed through unchanged.
+     *
+     * Configured annotations are enforced: an existing occurrence is rewritten in
+     * place and further occurrences of the same tag are dropped. Everything the
+     * configuration does not mention (descriptions, other tags, ordering) survives
+     * verbatim.
+     *
+     * A T_DOC_COMMENT always opens on its first and closes on its last line. Both
+     * are left untouched, so an annotation squeezed onto one of them is not
+     * enforced; rewriting it would have to drop the "/**" or "*\/" with it.
      *
      * @param array<string, string|array<string>|null> $annotations
      */
@@ -299,54 +309,111 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         }
         $prefix = $indent.'* ';
 
-        $existingTags = $this->parseExistingAnnotations($existingContent);
-
-        // Only add configured header annotations whose tag is not already present;
-        // existing annotations win and are never overwritten in preserve mode.
+        // Enforce every configured annotation in place and collect the ones that
+        // are absent, so they can be appended before the closing "*/".
         $linesToAdd = [];
         foreach ($annotations as $tag => $value) {
-            if (array_key_exists($tag, $existingTags)) {
-                continue;
-            }
-            foreach ($this->formatAnnotationLines($tag, $value, $prefix) as $annotationLine) {
-                $linesToAdd[] = $annotationLine;
+            $annotationLines = $this->formatAnnotationLines($tag, $value, $prefix);
+            [$lines, $replaced] = $this->replaceAnnotationLines($lines, $tag, $annotationLines);
+
+            if (!$replaced) {
+                foreach ($annotationLines as $annotationLine) {
+                    $linesToAdd[] = $annotationLine;
+                }
             }
         }
 
-        // Optionally prepend the structure name summary if it is not already there.
-        $summaryLines = [];
         $addStructureName = $this->resolvedConfiguration['add_structure_name'] ?? false;
-        if ($addStructureName && '' !== $structureName && !$this->hasStructureNameSummary($lines, $structureName)) {
-            $summaryLines[] = rtrim($prefix.$structureName.'.');
-            $summaryLines[] = rtrim($indent.'*');
+        if ($addStructureName && '' !== $structureName) {
+            $lines = $this->applyStructureNameSummary($lines, $structureName, $indent, $prefix);
         }
 
-        // Locate the opening "/**" and closing "*/" lines.
-        $openingIndex = 0;
-        foreach ($lines as $i => $line) {
-            if (str_contains($line, '/**')) {
-                $openingIndex = $i;
-                break;
-            }
-        }
-        $closingIndex = count($lines) - 1;
-        for ($i = count($lines) - 1; $i >= 0; --$i) {
-            if (str_contains($lines[$i], '*/')) {
-                $closingIndex = $i;
-                break;
-            }
-        }
-
-        // Insert the summary right after the opening line, tags right before "*/".
-        if ([] !== $summaryLines) {
-            array_splice($lines, $openingIndex + 1, 0, $summaryLines);
-            $closingIndex += count($summaryLines);
-        }
         if ([] !== $linesToAdd) {
-            array_splice($lines, $closingIndex, 0, $linesToAdd);
+            array_splice($lines, count($lines) - 1, 0, $linesToAdd);
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Rewrites the first occurrence of an annotation in place and drops any further
+     * occurrence of the same tag, including the continuation lines of its value.
+     *
+     * @param array<string> $lines
+     * @param array<string> $annotationLines
+     *
+     * @return array{array<string>, bool}
+     */
+    private function replaceAnnotationLines(array $lines, string $tag, array $annotationLines): array
+    {
+        $pattern = '/^@'.preg_quote($tag, '/').'(?:\s|$)/';
+        $lastIndex = count($lines) - 1;
+        $result = [];
+        $replaced = false;
+        $dropping = false;
+
+        foreach ($lines as $index => $line) {
+            $isBoundary = 0 === $index || $index === $lastIndex;
+            $content = $isBoundary ? '' : trim($line, " \t\r\n/*");
+
+            if ($dropping) {
+                if ('' !== $content && !str_starts_with($content, '@')) {
+                    continue;
+                }
+                $dropping = false;
+            }
+
+            if ('' !== $content && preg_match($pattern, $content)) {
+                $dropping = true;
+
+                if (!$replaced) {
+                    $replaced = true;
+                    foreach ($annotationLines as $annotationLine) {
+                        $result[] = $annotationLine;
+                    }
+                }
+
+                continue;
+            }
+
+            $result[] = $line;
+        }
+
+        return [$result, $replaced];
+    }
+
+    /**
+     * Rewrites a stale structure name summary or prepends a missing one.
+     *
+     * @param array<string> $lines
+     *
+     * @return array<string>
+     */
+    private function applyStructureNameSummary(array $lines, string $structureName, string $indent, string $prefix): array
+    {
+        if ($this->hasStructureNameSummary($lines, $structureName)) {
+            return $lines;
+        }
+
+        $summaryLine = rtrim($prefix.$structureName.'.');
+        $slotIndex = 1;
+
+        // A bare identifier followed by a dot occupies the structure name slot and
+        // belongs to a former name, so it is rewritten instead of pushed down.
+        if ($slotIndex < count($lines) - 1 && $this->isStructureNameSlot($lines[$slotIndex])) {
+            $lines[$slotIndex] = $summaryLine;
+
+            return $lines;
+        }
+
+        array_splice($lines, $slotIndex, 0, [$summaryLine, rtrim($indent.'*')]);
+
+        return $lines;
+    }
+
+    private function isStructureNameSlot(string $line): bool
+    {
+        return 1 === preg_match('/^[A-Za-z_]\w*\.$/', trim($line, " \t\r\n/*"));
     }
 
     /**
@@ -438,6 +505,11 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         $tokens->insertAt($insertIndex, $tokensToInsert);
     }
 
+    /**
+     * Comments terminate the backward walk on purpose: a preceding comment is
+     * indistinguishable from a file header comment, and a new DocBlock must not
+     * be placed above such a header.
+     */
     private function findInsertPosition(Tokens $tokens, int $structureIndex): int
     {
         $insertIndex = $structureIndex;
