@@ -1,5 +1,7 @@
 <div align="center">
 
+![icon](icon.png)
+
 # Php DocBlock Header Fixer
 
 [![Coverage](https://img.shields.io/coverallsCoverage/github/konradmichalik/php-doc-block-header-fixer?logo=coveralls)](https://coveralls.io/github/konradmichalik/php-doc-block-header-fixer)
