@@ -262,14 +262,8 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
 
         // Surgically inject only the configured header annotations while keeping
         // every existing line verbatim (hyphenated tags, multi-line tag values,
-        // free-text descriptions). Degenerate single-line DocBlocks that cannot be
-        // amended in place fall back to a parse + rebuild.
-        if (str_contains($existingContent, "\n")) {
-            $newDocBlock = $this->injectHeaderAnnotations($existingContent, $annotations, $structureName);
-        } else {
-            $mergedAnnotations = $this->mergeAnnotations($this->parseExistingAnnotations($existingContent), $annotations);
-            $newDocBlock = $this->buildDocBlock($mergedAnnotations, $structureName);
-        }
+        // free-text descriptions).
+        $newDocBlock = $this->injectHeaderAnnotations($this->expandSingleLineDocBlock($existingContent), $annotations, $structureName);
 
         $tokens[$docBlockIndex] = new Token([\T_DOC_COMMENT, $newDocBlock]);
 
@@ -278,6 +272,21 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         if ($ensureSpacing) {
             $this->ensureProperSpacingAfterDocBlock($tokens, $docBlockIndex);
         }
+    }
+
+    /**
+     * Turns "/** Foo. *\/" into a multi-line DocBlock, so its content moves off the
+     * opening and closing lines that injectHeaderAnnotations() leaves untouched.
+     */
+    private function expandSingleLineDocBlock(string $docBlock): string
+    {
+        if (str_contains($docBlock, "\n")) {
+            return $docBlock;
+        }
+
+        $content = trim(substr($docBlock, 3, -2), " \t*");
+
+        return '' === $content ? "/**\n */" : "/**\n * {$content}\n */";
     }
 
     /**
@@ -550,50 +559,6 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         }
 
         return $insertIndex;
-    }
-
-    /**
-     * @return array<string, string|array<string>>
-     */
-    private function parseExistingAnnotations(string $docBlockContent): array
-    {
-        $lines = explode("\n", $docBlockContent);
-        $annotations = [];
-
-        foreach ($lines as $line) {
-            $line = trim($line, " \t\r\n/*");
-            if (preg_match('/^@([a-zA-Z][\w-]*)(?:\s+(.*))?$/', $line, $matches)) {
-                $tag = $matches[1];
-                $value = $matches[2] ?? '';
-
-                // If this tag already exists, convert to array or append to existing array
-                if (isset($annotations[$tag])) {
-                    // Convert existing single value to array
-                    if (!is_array($annotations[$tag])) {
-                        $annotations[$tag] = [$annotations[$tag]];
-                    }
-                    // Append new value to array
-                    $annotations[$tag][] = $value;
-                } else {
-                    // First occurrence, store as string
-                    $annotations[$tag] = $value;
-                }
-            }
-        }
-
-        return $annotations;
-    }
-
-    /**
-     * @param array<string, string|array<string>> $existing
-     * @param array<string, string|array<string>> $new
-     *
-     * @return array<string, string|array<string>>
-     */
-    private function mergeAnnotations(array $existing, array $new): array
-    {
-        // New annotations take precedence, but we keep existing ones that aren't being overridden
-        return array_merge($existing, $new);
     }
 
     /**

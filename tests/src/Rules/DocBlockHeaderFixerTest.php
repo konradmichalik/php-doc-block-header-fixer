@@ -181,78 +181,6 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertContains('ensure_spacing', $optionNames);
     }
 
-    public function testParseExistingAnnotations(): void
-    {
-        $method = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
-
-        $docBlock = "/**\n * @author John Doe\n * @license MIT\n */";
-        $result = $method->invoke($this->fixer, $docBlock);
-
-        $expected = [
-            'author' => 'John Doe',
-            'license' => 'MIT',
-        ];
-
-        self::assertSame($expected, $result);
-    }
-
-    public function testParseExistingAnnotationsWithDuplicates(): void
-    {
-        $method = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
-
-        $docBlock = "/**\n * @implements ArrayAccess<int, string>\n * @implements IteratorAggregate<int, string>\n */";
-        $result = $method->invoke($this->fixer, $docBlock);
-
-        self::assertIsArray($result);
-        self::assertArrayHasKey('implements', $result);
-        self::assertIsArray($result['implements']);
-        self::assertCount(2, $result['implements']);
-        self::assertSame('ArrayAccess<int, string>', $result['implements'][0]);
-        self::assertSame('IteratorAggregate<int, string>', $result['implements'][1]);
-    }
-
-    public function testParseExistingAnnotationsWithMultipleDuplicateTags(): void
-    {
-        $method = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
-
-        $docBlock = "/**\n * @author First Author\n * @license MIT\n * @author Second Author\n * @author Third Author\n */";
-        $result = $method->invoke($this->fixer, $docBlock);
-
-        self::assertIsArray($result);
-        self::assertArrayHasKey('author', $result);
-        self::assertIsArray($result['author']);
-        self::assertCount(3, $result['author']);
-        self::assertSame('First Author', $result['author'][0]);
-        self::assertSame('Second Author', $result['author'][1]);
-        self::assertSame('Third Author', $result['author'][2]);
-        self::assertSame('MIT', $result['license']);
-    }
-
-    public function testParseExistingAnnotationsWithHyphenatedTags(): void
-    {
-        $method = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
-
-        $docBlock = "/**\n * @phpstan-type BakedRoute array{path: string, methods: list<string>}\n * @phpstan-import-type BakedRoute from Router\n * @author Konrad Michalik <hej@example.com>\n */";
-        $result = $method->invoke($this->fixer, $docBlock);
-
-        self::assertSame('BakedRoute array{path: string, methods: list<string>}', $result['phpstan-type']);
-        self::assertSame('BakedRoute from Router', $result['phpstan-import-type']);
-        self::assertSame('Konrad Michalik <hej@example.com>', $result['author']);
-    }
-
-    public function testParseExistingAnnotationsWithMultipleHyphenatedTags(): void
-    {
-        $method = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
-
-        $docBlock = "/**\n * @phpstan-type Foo array{a: int}\n * @phpstan-type Bar array{b: string}\n */";
-        $result = $method->invoke($this->fixer, $docBlock);
-
-        self::assertIsArray($result['phpstan-type']);
-        self::assertCount(2, $result['phpstan-type']);
-        self::assertSame('Foo array{a: int}', $result['phpstan-type'][0]);
-        self::assertSame('Bar array{b: string}', $result['phpstan-type'][1]);
-    }
-
     public function testPreserveExistingKeepsHyphenatedTags(): void
     {
         $code = "<?php\n/**\n * Foo.\n *\n * @phpstan-type BakedRoute array{path: string, methods: list<string>}\n * @phpstan-import-type BakedRoute from Router\n * @author Konrad Michalik <hej@example.com>\n */\nfinal class Foo {}";
@@ -265,40 +193,6 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertStringContainsString('@phpstan-type BakedRoute array{path: string, methods: list<string>}', $result);
         self::assertStringContainsString('@phpstan-import-type BakedRoute from Router', $result);
         self::assertStringContainsString('@author Konrad Michalik <hej@example.com>', $result);
-    }
-
-    public function testParseExistingAnnotationsWithDuplicateEmptyValues(): void
-    {
-        $method = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
-
-        $docBlock = "/**\n * @internal\n * @api\n * @internal\n */";
-        $result = $method->invoke($this->fixer, $docBlock);
-
-        self::assertIsArray($result);
-        self::assertArrayHasKey('internal', $result);
-        self::assertIsArray($result['internal']);
-        self::assertCount(2, $result['internal']);
-        self::assertSame('', $result['internal'][0]);
-        self::assertSame('', $result['internal'][1]);
-        self::assertSame('', $result['api']);
-    }
-
-    public function testMergeAnnotations(): void
-    {
-        $method = new ReflectionMethod($this->fixer, 'mergeAnnotations');
-
-        $existing = ['author' => 'Existing Author', 'version' => '1.0'];
-        $new = ['author' => 'New Author', 'license' => 'MIT'];
-
-        $result = $method->invoke($this->fixer, $existing, $new);
-
-        $expected = [
-            'author' => 'New Author',
-            'version' => '1.0',
-            'license' => 'MIT',
-        ];
-
-        self::assertSame($expected, $result);
     }
 
     public function testApplyFixWithEmptyAnnotations(): void
@@ -519,7 +413,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertStringContainsString('@author Jane Smith <jane@example.com>', $result);
     }
 
-    public function testMergeWithExistingSingleLineDocBlockFallsBackToRebuild(): void
+    public function testMergeWithExistingSingleLineDocBlockExpandsIt(): void
     {
         $code = '<?php /** @license MIT */ final class Foo {}';
         $tokens = Tokens::fromCode($code);
@@ -527,12 +421,63 @@ final class DocBlockHeaderFixerTest extends TestCase
 
         $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
 
-        $this->fixer->configure(['preserve_existing' => true]);
+        $this->fixer->configure(['preserve_existing' => true, 'ensure_spacing' => false]);
         $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
 
-        $result = $tokens->generateCode();
-        self::assertStringContainsString('@license MIT', $result);
-        self::assertStringContainsString('@author John Doe', $result);
+        self::assertSame("<?php /**\n * @license MIT\n * @author John Doe\n */ final class Foo {}", $tokens->generateCode());
+    }
+
+    public function testMergeWithExistingSingleLineDocBlockKeepsDescription(): void
+    {
+        $code = '<?php /** Handles requests. */ final class Foo {}';
+        $tokens = Tokens::fromCode($code);
+        $annotations = ['author' => 'John Doe', 'license' => 'MIT'];
+
+        $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
+
+        $this->fixer->configure(['preserve_existing' => true, 'ensure_spacing' => false]);
+        $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
+
+        self::assertSame("<?php /**\n * Handles requests.\n * @author John Doe\n * @license MIT\n */ final class Foo {}", $tokens->generateCode());
+    }
+
+    public function testMergeWithExistingSingleLineDocBlockEnforcesConfiguredValue(): void
+    {
+        $code = '<?php /** @license GPL */ final class Foo {}';
+        $tokens = Tokens::fromCode($code);
+
+        $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
+
+        $this->fixer->configure(['preserve_existing' => true, 'ensure_spacing' => false]);
+        $method->invoke($this->fixer, $tokens, 1, ['license' => 'MIT'], 'Foo');
+
+        self::assertSame("<?php /**\n * @license MIT\n */ final class Foo {}", $tokens->generateCode());
+    }
+
+    public function testMergeWithExistingSingleLineDocBlockStripsExtraAsterisks(): void
+    {
+        $code = '<?php /** Handles requests. **/ final class Foo {}';
+        $tokens = Tokens::fromCode($code);
+
+        $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
+
+        $this->fixer->configure(['preserve_existing' => true, 'ensure_spacing' => false]);
+        $method->invoke($this->fixer, $tokens, 1, ['license' => 'MIT'], 'Foo');
+
+        self::assertSame("<?php /**\n * Handles requests.\n * @license MIT\n */ final class Foo {}", $tokens->generateCode());
+    }
+
+    public function testMergeWithExistingEmptySingleLineDocBlock(): void
+    {
+        $code = '<?php /** */ final class Foo {}';
+        $tokens = Tokens::fromCode($code);
+
+        $method = new ReflectionMethod($this->fixer, 'mergeWithExistingDocBlock');
+
+        $this->fixer->configure(['preserve_existing' => true, 'ensure_spacing' => false]);
+        $method->invoke($this->fixer, $tokens, 1, ['license' => 'MIT'], 'Foo');
+
+        self::assertSame("<?php /**\n * @license MIT\n */ final class Foo {}", $tokens->generateCode());
     }
 
     public function testReplaceDocBlock(): void
@@ -1324,31 +1269,6 @@ final class DocBlockHeaderFixerTest extends TestCase
 
         // Anonymous class with readonly modifier should NOT have DocBlock added
         self::assertSame($code, $tokens->generateCode());
-    }
-
-    public function testFullRoundTripWithDuplicateImplementsAnnotations(): void
-    {
-        $parseMethod = new ReflectionMethod($this->fixer, 'parseExistingAnnotations');
-        $buildMethod = new ReflectionMethod($this->fixer, 'buildDocBlock');
-
-        // Original DocBlock with duplicate @implements
-        $originalDocBlock = "/**\n * @author Konrad Michalik\n * @license GPL-3.0\n * @implements ArrayAccess<int|null, IconImage>\n * @implements IteratorAggregate<int, IconImage>\n */";
-
-        // Parse existing annotations
-        $parsed = $parseMethod->invoke($this->fixer, $originalDocBlock);
-
-        // Verify parsing preserved both @implements
-        self::assertIsArray($parsed['implements']);
-        self::assertCount(2, $parsed['implements']);
-
-        // Build DocBlock from parsed annotations
-        $rebuilt = $buildMethod->invoke($this->fixer, $parsed, '');
-
-        // Verify both @implements are present in rebuilt DocBlock
-        self::assertStringContainsString('@author Konrad Michalik', $rebuilt);
-        self::assertStringContainsString('@license GPL-3.0', $rebuilt);
-        self::assertStringContainsString('@implements ArrayAccess<int|null, IconImage>', $rebuilt);
-        self::assertStringContainsString('@implements IteratorAggregate<int, IconImage>', $rebuilt);
     }
 
     public function testMergeWithExistingDocBlockPreservesDuplicateImplements(): void
