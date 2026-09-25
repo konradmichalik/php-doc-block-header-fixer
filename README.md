@@ -105,7 +105,7 @@ return (new PhpCsFixer\Config())
             preserveExisting: true,
             separate: \KonradMichalik\PhpDocBlockHeaderFixer\Enum\Separate::None,
             addStructureName: true
-        )->__toArray()
+        )->toArray()
     ])
 ;
 ```
@@ -121,7 +121,7 @@ return (new PhpCsFixer\Config())
         new KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer()
     ])
     ->setRules([
-        KonradMichalik\PhpDocBlockHeaderFixer\Generators\DocBlockHeader::fromComposer()->__toArray()
+        KonradMichalik\PhpDocBlockHeaderFixer\Generators\DocBlockHeader::fromComposer()->toArray()
     ])
 ;
 ```

@@ -40,9 +40,19 @@ final readonly class DocBlockHeader implements Generator
     ) {}
 
     /**
+     * @deprecated use toArray() instead, the "__" prefix is reserved for PHP magic methods
+     *
      * @return array<string, array<string, mixed>>
      */
     public function __toArray(): array
+    {
+        return $this->toArray();
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    public function toArray(): array
     {
         return [
             'KonradMichalik/docblock_header_comment' => [
