@@ -171,7 +171,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         $configDefinition = $this->fixer->getConfigurationDefinition();
         $options = $configDefinition->getOptions();
 
-        self::assertCount(5, $options);
+        self::assertCount(6, $options);
 
         $optionNames = array_map(static fn ($option) => $option->getName(), $options);
         self::assertContains('annotations', $optionNames);
@@ -179,6 +179,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertContains('separate', $optionNames);
         self::assertContains('add_structure_name', $optionNames);
         self::assertContains('ensure_spacing', $optionNames);
+        self::assertContains('replace_stale_structure_name', $optionNames);
     }
 
     public function testParseExistingAnnotations(): void
@@ -1539,10 +1540,29 @@ final class DocBlockHeaderFixerTest extends TestCase
         $this->fixer->configure([
             'annotations' => ['author' => 'Jane Doe <jane@example.com>'],
             'add_structure_name' => true,
+            'replace_stale_structure_name' => true,
         ]);
         $method->invoke($this->fixer, $file, $tokens);
 
         $expected = "<?php\n\n/**\n * Renamed.\n *\n * @author Jane Doe <jane@example.com>\n */\nclass Renamed {}\n";
+        self::assertSame($expected, $tokens->generateCode());
+    }
+
+    public function testApplyFixKeepsOneWordDescriptionByDefault(): void
+    {
+        $code = "<?php\n\n/**\n * Deprecated.\n *\n * @license MIT\n */\nfinal class Foo {}\n";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure([
+            'annotations' => ['license' => 'MIT'],
+            'add_structure_name' => true,
+        ]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        $expected = "<?php\n\n/**\n * Foo.\n *\n * Deprecated.\n *\n * @license MIT\n */\nfinal class Foo {}\n";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -1684,6 +1704,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         $configuration = [
             'annotations' => ['author' => 'Jane Doe <jane@example.com>'],
             'add_structure_name' => true,
+            'replace_stale_structure_name' => true,
         ];
         $file = new SplFileInfo(__FILE__);
         $method = new ReflectionMethod($this->fixer, 'applyFix');

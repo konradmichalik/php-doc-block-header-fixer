@@ -87,6 +87,10 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
                 ->setAllowedTypes(['bool'])
                 ->setDefault(false)
                 ->getOption(),
+            (new FixerOptionBuilder('replace_stale_structure_name', 'Rewrite a first line that looks like a former structure name ("OldName.") instead of prepending the current one. A one-word description such as "Deprecated." is indistinguishable and gets rewritten too'))
+                ->setAllowedTypes(['bool'])
+                ->setDefault(false)
+                ->getOption(),
             (new FixerOptionBuilder('ensure_spacing', 'Ensure proper spacing after DocBlock to prevent conflicts with PHP-CS-Fixer rules'))
                 ->setAllowedTypes(['bool'])
                 ->setDefault(true)
@@ -398,9 +402,10 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         $summaryLine = rtrim($prefix.$structureName.'.');
         $slotIndex = 1;
 
-        // A bare identifier followed by a dot occupies the structure name slot and
-        // belongs to a former name, so it is rewritten instead of pushed down.
-        if ($slotIndex < count($lines) - 1 && $this->isStructureNameSlot($lines[$slotIndex])) {
+        // A bare identifier followed by a dot may be a former name, but just as well a
+        // one-word description, so it is only rewritten on request.
+        $replaceStaleName = $this->resolvedConfiguration['replace_stale_structure_name'] ?? false;
+        if ($replaceStaleName && $slotIndex < count($lines) - 1 && $this->isStructureNameSlot($lines[$slotIndex])) {
             $lines[$slotIndex] = $summaryLine;
 
             return $lines;
