@@ -13,13 +13,17 @@ declare(strict_types=1);
 
 namespace KonradMichalik\PhpDocBlockHeaderFixer\Rules;
 
+use InvalidArgumentException;
 use KonradMichalik\PhpDocBlockHeaderFixer\Enum\Separate;
+use KonradMichalik\PhpDocBlockHeaderFixer\Service\AnnotationService;
 use PhpCsFixer\AbstractFixer;
+use PhpCsFixer\ConfigurationException\InvalidFixerConfigurationException;
 use PhpCsFixer\Fixer\ConfigurableFixerInterface;
 use PhpCsFixer\FixerConfiguration\{FixerConfigurationResolver, FixerConfigurationResolverInterface, FixerOptionBuilder};
 use PhpCsFixer\FixerDefinition\{FixerDefinition, FixerDefinitionInterface};
 use PhpCsFixer\Tokenizer\{Token, Tokens};
 use SplFileInfo;
+use Symfony\Component\OptionsResolver\Options;
 
 use function count;
 use function in_array;
@@ -70,10 +74,19 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
 
     public function getConfigurationDefinition(): FixerConfigurationResolverInterface
     {
+        $fixerName = $this->getName();
+
         return new FixerConfigurationResolver([
             (new FixerOptionBuilder('annotations', 'DocBlock annotations to add'))
                 ->setAllowedTypes(['array'])
                 ->setDefault([])
+                ->setNormalizer(static function (Options $options, array $annotations) use ($fixerName): array {
+                    try {
+                        return AnnotationService::normalize($annotations);
+                    } catch (InvalidArgumentException $exception) {
+                        throw new InvalidFixerConfigurationException($fixerName, $exception->getMessage(), $exception);
+                    }
+                })
                 ->getOption(),
             (new FixerOptionBuilder('preserve_existing', 'Preserve existing DocBlock annotations'))
                 ->setAllowedTypes(['bool'])
@@ -597,7 +610,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     }
 
     /**
-     * @param array<string, string|array<string>> $annotations
+     * @param array<string, string|array<string>|null> $annotations
      */
     private function buildDocBlock(array $annotations, string $structureName): string
     {
@@ -620,7 +633,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         }
 
         foreach ($annotations as $tag => $value) {
-            if (empty($value)) {
+            if (null === $value || '' === $value || [] === $value) {
                 $docBlock .= " * @{$tag}\n";
             } elseif (is_array($value)) {
                 // Handle multiple values for the same tag (e.g., multiple authors)
