@@ -14,7 +14,7 @@ declare(strict_types=1);
 namespace KonradMichalik\PhpDocBlockHeaderFixer\Tests\Rules;
 
 use KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer;
-use PhpCsFixer\FixerFactory;
+use PhpCsFixer\{FixerFactory, WhitespacesFixerConfig};
 use PhpCsFixer\RuleSet\RuleSet;
 use PhpCsFixer\Tokenizer\Tokens;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -157,6 +157,76 @@ final class DocBlockHeaderFixerRuleSetTest extends TestCase
         self::assertStringContainsString("*/\n\n    final class A {}", $result);
     }
 
+    public function testNewDocBlockIsIndentedLikeStructureInNamespaceBlock(): void
+    {
+        $code = "<?php\n\nnamespace App {\n    final class Bar {}\n}\n";
+
+        self::assertSame(
+            "<?php\n\nnamespace App {\n    /**\n     * @author Konrad <k@x.de>\n     * @license MIT\n     */\n    final class Bar {}\n}\n",
+            $this->fix($code, [], ['annotations' => self::ANNOTATIONS]),
+        );
+    }
+
+    public function testNewDocBlockIsIndentedLikeConditionalDeclaration(): void
+    {
+        $code = "<?php\n\nif (!class_exists(Bar::class)) {\n    final class Bar {}\n}\n";
+
+        self::assertSame(
+            "<?php\n\nif (!class_exists(Bar::class)) {\n    /**\n     * @author Konrad <k@x.de>\n     * @license MIT\n     */\n    final class Bar {}\n}\n",
+            $this->fix($code, [], ['annotations' => self::ANNOTATIONS]),
+        );
+    }
+
+    public function testReplacedDocBlockIsIndentedLikeStructure(): void
+    {
+        $code = "<?php\n\nnamespace App {\n    /**\n     * @license GPL\n     */\n    final class Bar {}\n}\n";
+
+        self::assertSame(
+            "<?php\n\nnamespace App {\n    /**\n     * @author Konrad <k@x.de>\n     * @license MIT\n     */\n    final class Bar {}\n}\n",
+            $this->fix($code, [], ['annotations' => self::ANNOTATIONS, 'preserve_existing' => false]),
+        );
+    }
+
+    public function testNewDocBlockUsesConfiguredLineEnding(): void
+    {
+        $code = "<?php\r\n\r\nnamespace App;\r\n\r\nfinal class A {}\r\n";
+
+        self::assertSame(
+            "<?php\r\n\r\nnamespace App;\r\n\r\n/**\r\n * @author Konrad <k@x.de>\r\n * @license MIT\r\n */\r\n\r\nfinal class A {}\r\n",
+            $this->fix($code, [], ['annotations' => self::ANNOTATIONS, 'separate' => 'both'], "\r\n"),
+        );
+    }
+
+    public function testMergedSingleLineDocBlockIsIndentedLikeStructure(): void
+    {
+        $code = "<?php\n\nnamespace App {\n    /** @internal */ final class A {}\n}\n";
+
+        self::assertSame(
+            "<?php\n\nnamespace App {\n    /**\n     * @internal\n     * @author Konrad <k@x.de>\n     * @license MIT\n     */\n    final class A {}\n}\n",
+            $this->fix($code, [], ['annotations' => self::ANNOTATIONS]),
+        );
+    }
+
+    public function testMergedDocBlockKeepsItsLineEnding(): void
+    {
+        $code = "<?php\r\n\r\n/**\r\n * Foo.\r\n */\r\nfinal class A {}\r\n";
+
+        self::assertSame(
+            "<?php\r\n\r\n/**\r\n * Foo.\r\n * @author Konrad <k@x.de>\r\n * @license MIT\r\n */\r\nfinal class A {}\r\n",
+            $this->fix($code, [], ['annotations' => self::ANNOTATIONS], "\r\n"),
+        );
+    }
+
+    public function testEmptyListValueAddsBareTag(): void
+    {
+        $code = "<?php\n\nfinal class A {}\n";
+
+        self::assertSame(
+            "<?php\n\n/**\n * @internal\n */\nfinal class A {}\n",
+            $this->fix($code, [], ['annotations' => ['internal' => []]]),
+        );
+    }
+
     public function testMergedSingleLineDocBlockKeepsIndentationOfStructure(): void
     {
         $code = "<?php\n\nnamespace App {\n    /** @internal */ final class A {}\n}\n";
@@ -172,12 +242,14 @@ final class DocBlockHeaderFixerRuleSetTest extends TestCase
      *
      * @param array<string, mixed> $rules
      * @param array<string, mixed> $config
+     * @param non-empty-string     $lineEnding
      */
-    private function fix(string $code, array $rules, array $config): string
+    private function fix(string $code, array $rules, array $config, string $lineEnding = "\n"): string
     {
         $factory = (new FixerFactory())
             ->registerBuiltInFixers()
             ->registerCustomFixers([new DocBlockHeaderFixer()])
+            ->setWhitespacesConfig(new WhitespacesFixerConfig('    ', $lineEnding))
             ->useRuleSet(new RuleSet([...$rules, 'KonradMichalik/docblock_header_comment' => $config]));
 
         Tokens::clearCache();
