@@ -13,14 +13,19 @@ declare(strict_types=1);
 
 namespace KonradMichalik\PhpDocBlockHeaderFixer\Rules;
 
+use InvalidArgumentException;
 use KonradMichalik\PhpDocBlockHeaderFixer\Enum\Separate;
+use KonradMichalik\PhpDocBlockHeaderFixer\Service\AnnotationService;
 use PhpCsFixer\AbstractFixer;
+use PhpCsFixer\ConfigurationException\InvalidFixerConfigurationException;
 use PhpCsFixer\Fixer\ConfigurableFixerInterface;
 use PhpCsFixer\FixerConfiguration\{FixerConfigurationResolver, FixerConfigurationResolverInterface, FixerOptionBuilder};
 use PhpCsFixer\FixerDefinition\{FixerDefinition, FixerDefinitionInterface};
 use PhpCsFixer\Tokenizer\{Token, Tokens};
 use SplFileInfo;
+use Symfony\Component\OptionsResolver\Options;
 
+use function array_key_exists;
 use function count;
 use function in_array;
 use function is_array;
@@ -39,6 +44,18 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
      * @var array<string, mixed>
      */
     private array $resolvedConfiguration = [];
+
+    /**
+     * @var array<string, string|list<string>|null>
+     */
+    private array $annotations = [];
+
+    /**
+     * Tags whose configured values are added next to existing entries instead of replacing them.
+     *
+     * @var list<string>
+     */
+    private array $appendTags = [];
 
     public function getDefinition(): FixerDefinitionInterface
     {
@@ -70,10 +87,19 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
 
     public function getConfigurationDefinition(): FixerConfigurationResolverInterface
     {
+        $fixerName = $this->getName();
+
         return new FixerConfigurationResolver([
             (new FixerOptionBuilder('annotations', 'DocBlock annotations to add'))
                 ->setAllowedTypes(['array'])
                 ->setDefault([])
+                ->setNormalizer(static function (Options $options, array $annotations) use ($fixerName): array {
+                    try {
+                        return AnnotationService::normalize($annotations);
+                    } catch (InvalidArgumentException $exception) {
+                        throw new InvalidFixerConfigurationException($fixerName, $exception->getMessage(), $exception);
+                    }
+                })
                 ->getOption(),
             (new FixerOptionBuilder('preserve_existing', 'Preserve existing DocBlock annotations'))
                 ->setAllowedTypes(['bool'])
@@ -97,12 +123,26 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     public function configure(?array $configuration = null): void
     {
         $this->resolvedConfiguration = $this->getConfigurationDefinition()->resolve($configuration ?? []);
+
+        $this->annotations = [];
+        $this->appendTags = [];
+        foreach ($this->resolvedConfiguration['annotations'] as $tag => $value) {
+            if (is_array($value) && array_key_exists('strategy', $value)) {
+                $this->annotations[$tag] = $value['value'];
+                if (AnnotationService::STRATEGY_APPEND === $value['strategy']) {
+                    $this->appendTags[] = $tag;
+                }
+                continue;
+            }
+
+            $this->annotations[$tag] = $value;
+        }
     }
 
     protected function applyFix(SplFileInfo $file, Tokens $tokens): void
     {
-        $annotations = $this->resolvedConfiguration['annotations'] ?? [];
-        if (empty($annotations)) {
+        $annotations = $this->annotations;
+        if ([] === $annotations) {
             return;
         }
 
@@ -170,7 +210,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     }
 
     /**
-     * @param array<string, string|array<string>> $annotations
+     * @param array<string, string|array<string>|null> $annotations
      */
     private function processStructureDocBlock(Tokens $tokens, int $structureIndex, array $annotations, string $structureName): void
     {
@@ -254,7 +294,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     }
 
     /**
-     * @param array<string, string|array<string>> $annotations
+     * @param array<string, string|array<string>|null> $annotations
      */
     private function mergeWithExistingDocBlock(Tokens $tokens, int $docBlockIndex, array $annotations, string $structureName): void
     {
@@ -314,6 +354,12 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         $linesToAdd = [];
         foreach ($annotations as $tag => $value) {
             $annotationLines = $this->formatAnnotationLines($tag, $value, $prefix);
+
+            if (in_array($tag, $this->appendTags, true)) {
+                array_push($linesToAdd, ...$this->missingAnnotationLines($lines, $annotationLines));
+                continue;
+            }
+
             [$lines, $replaced] = $this->replaceAnnotationLines($lines, $tag, $annotationLines);
 
             if (!$replaced) {
@@ -333,6 +379,22 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string> $lines
+     * @param array<string> $annotationLines
+     *
+     * @return array<string>
+     */
+    private function missingAnnotationLines(array $lines, array $annotationLines): array
+    {
+        $existing = array_map(static fn (string $line): string => trim($line, " \t\r\n/*"), $lines);
+
+        return array_values(array_filter(
+            $annotationLines,
+            static fn (string $annotationLine): bool => !in_array(trim($annotationLine, " \t\r\n/*"), $existing, true),
+        ));
     }
 
     /**
@@ -453,7 +515,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     }
 
     /**
-     * @param array<string, string|array<string>> $annotations
+     * @param array<string, string|array<string>|null> $annotations
      */
     private function replaceDocBlock(Tokens $tokens, int $docBlockIndex, array $annotations, string $structureName): void
     {
@@ -468,7 +530,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     }
 
     /**
-     * @param array<string, string|array<string>> $annotations
+     * @param array<string, string|array<string>|null> $annotations
      */
     private function insertNewDocBlock(Tokens $tokens, int $structureIndex, array $annotations, string $structureName): void
     {
@@ -585,19 +647,27 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     }
 
     /**
-     * @param array<string, string|array<string>> $existing
-     * @param array<string, string|array<string>> $new
+     * @param array<string, string|array<string>>      $existing
+     * @param array<string, string|array<string>|null> $new
      *
-     * @return array<string, string|array<string>>
+     * @return array<string, string|array<string>|null>
      */
     private function mergeAnnotations(array $existing, array $new): array
     {
         // New annotations take precedence, but we keep existing ones that aren't being overridden
-        return array_merge($existing, $new);
+        $merged = array_merge($existing, $new);
+
+        foreach ($this->appendTags as $tag) {
+            if (isset($existing[$tag], $new[$tag])) {
+                $merged[$tag] = array_values(array_unique([...(array) $existing[$tag], ...(array) $new[$tag]]));
+            }
+        }
+
+        return $merged;
     }
 
     /**
-     * @param array<string, string|array<string>> $annotations
+     * @param array<string, string|array<string>|null> $annotations
      */
     private function buildDocBlock(array $annotations, string $structureName): string
     {
@@ -620,7 +690,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         }
 
         foreach ($annotations as $tag => $value) {
-            if (empty($value)) {
+            if (null === $value || '' === $value || [] === $value) {
                 $docBlock .= " * @{$tag}\n";
             } elseif (is_array($value)) {
                 // Handle multiple values for the same tag (e.g., multiple authors)
