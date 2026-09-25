@@ -27,7 +27,7 @@ return Config::create()
     )
     ->withRule(
         RuleSet::fromArray(
-            DocBlockHeader::fromComposer()->__toArray(),
+            DocBlockHeader::fromComposer()->toArray(),
         ),
     )
     ->withFinder(static fn (Finder $finder) => $finder->in(__DIR__))

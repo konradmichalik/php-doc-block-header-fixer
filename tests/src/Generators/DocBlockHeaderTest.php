@@ -79,7 +79,7 @@ final class DocBlockHeaderTest extends TestCase
         $annotations = ['author' => 'John Doe', 'license' => 'MIT'];
         $docBlockHeader = DocBlockHeader::create($annotations, false, Separate::Top);
 
-        $result = $docBlockHeader->__toArray();
+        $result = $docBlockHeader->toArray();
 
         $expected = [
             'KonradMichalik/docblock_header_comment' => [
@@ -98,7 +98,7 @@ final class DocBlockHeaderTest extends TestCase
         $annotations = ['author' => 'John Doe'];
         $docBlockHeader = DocBlockHeader::create($annotations);
 
-        $result = $docBlockHeader->__toArray();
+        $result = $docBlockHeader->toArray();
 
         $expected = [
             'KonradMichalik/docblock_header_comment' => [
@@ -291,7 +291,7 @@ final class DocBlockHeaderTest extends TestCase
             true,
         );
 
-        $result = $docBlockHeader->__toArray();
+        $result = $docBlockHeader->toArray();
 
         $expected = [
             'KonradMichalik/docblock_header_comment' => [
@@ -303,6 +303,13 @@ final class DocBlockHeaderTest extends TestCase
         ];
 
         self::assertSame($expected, $result);
+    }
+
+    public function testDeprecatedToArrayAliasMatchesToArray(): void
+    {
+        $docBlockHeader = DocBlockHeader::create(['author' => 'John Doe']);
+
+        self::assertSame($docBlockHeader->toArray(), $docBlockHeader->__toArray());
     }
 
     public function testFromComposerWithSingleAuthor(): void

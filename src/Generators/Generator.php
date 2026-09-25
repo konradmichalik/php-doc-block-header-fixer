@@ -22,6 +22,8 @@ namespace KonradMichalik\PhpDocBlockHeaderFixer\Generators;
 interface Generator
 {
     /**
+     * @deprecated implement toArray() as well, it replaces this method in the next breaking release
+     *
      * @return array<string, array<string, mixed>>
      */
     public function __toArray(): array;
