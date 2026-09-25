@@ -610,7 +610,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     }
 
     /**
-     * @param array<string, string|array<string>> $annotations
+     * @param array<string, string|array<string>|null> $annotations
      */
     private function buildDocBlock(array $annotations, string $structureName): string
     {
@@ -633,7 +633,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         }
 
         foreach ($annotations as $tag => $value) {
-            if (empty($value)) {
+            if (null === $value || '' === $value || [] === $value) {
                 $docBlock .= " * @{$tag}\n";
             } elseif (is_array($value)) {
                 // Handle multiple values for the same tag (e.g., multiple authors)

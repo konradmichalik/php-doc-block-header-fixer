@@ -198,6 +198,15 @@ final class DocBlockHeaderFixerTest extends TestCase
         $this->fixer->configure(['annotations' => ['since' => true]]);
     }
 
+    public function testBuildDocBlockKeepsZeroValue(): void
+    {
+        $method = new ReflectionMethod($this->fixer, 'buildDocBlock');
+
+        $result = $method->invoke($this->fixer, ['since' => '0'], 'TestClass');
+
+        self::assertSame("/**\n * @since 0\n */", $result);
+    }
+
     public function testApplyFixMergesScalarAnnotationValueIntoExistingDocBlock(): void
     {
         $code = "<?php\n/**\n * @since 2023\n */\nclass Foo {}";
