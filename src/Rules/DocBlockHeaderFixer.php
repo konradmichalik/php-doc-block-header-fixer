@@ -15,7 +15,7 @@ namespace KonradMichalik\PhpDocBlockHeaderFixer\Rules;
 
 use KonradMichalik\PhpDocBlockHeaderFixer\Enum\Separate;
 use PhpCsFixer\AbstractFixer;
-use PhpCsFixer\Fixer\ConfigurableFixerInterface;
+use PhpCsFixer\Fixer\{ConfigurableFixerInterface, WhitespacesAwareFixerInterface};
 use PhpCsFixer\FixerConfiguration\{FixerConfigurationResolver, FixerConfigurationResolverInterface, FixerOptionBuilder};
 use PhpCsFixer\FixerDefinition\{FixerDefinition, FixerDefinitionInterface};
 use PhpCsFixer\Tokenizer\{Token, Tokens};
@@ -24,6 +24,7 @@ use SplFileInfo;
 use function count;
 use function in_array;
 use function is_array;
+use function is_string;
 
 /**
  * DocBlockHeaderFixer.
@@ -33,7 +34,7 @@ use function is_array;
  *
  * @implements ConfigurableFixerInterface<array<string, mixed>, array<string, mixed>>
  */
-final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFixerInterface
+final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFixerInterface, WhitespacesAwareFixerInterface
 {
     /**
      * @var array<string, mixed>
@@ -106,7 +107,8 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
             return;
         }
 
-        for ($index = 0, $limit = $tokens->count(); $index < $limit; ++$index) {
+        // Walk backwards so an insertion never shifts a structure still to be visited.
+        for ($index = $tokens->count() - 1; $index >= 0; --$index) {
             $token = $tokens[$index];
 
             if (!$token->isGivenKind([\T_CLASS, \T_INTERFACE, \T_TRAIT, \T_ENUM])) {
@@ -268,7 +270,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
             $newDocBlock = $this->injectHeaderAnnotations($existingContent, $annotations, $structureName);
         } else {
             $mergedAnnotations = $this->mergeAnnotations($this->parseExistingAnnotations($existingContent), $annotations);
-            $newDocBlock = $this->buildDocBlock($mergedAnnotations, $structureName);
+            $newDocBlock = $this->buildDocBlock($mergedAnnotations, $structureName, $this->getIndentBefore($tokens, $docBlockIndex));
         }
 
         $tokens[$docBlockIndex] = new Token([\T_DOC_COMMENT, $newDocBlock]);
@@ -297,7 +299,9 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
      */
     private function injectHeaderAnnotations(string $existingContent, array $annotations, string $structureName): string
     {
-        $lines = explode("\n", $existingContent);
+        // Keep the DocBlock's own line ending, so injected lines don't mix CRLF and LF.
+        $lineEnding = str_contains($existingContent, "\r\n") ? "\r\n" : "\n";
+        $lines = explode($lineEnding, $existingContent);
 
         // Derive the indentation used for the DocBlock's " * " lines.
         $indent = '';
@@ -332,7 +336,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
             array_splice($lines, count($lines) - 1, 0, $linesToAdd);
         }
 
-        return implode("\n", $lines);
+        return implode($lineEnding, $lines);
     }
 
     /**
@@ -423,7 +427,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
      */
     private function formatAnnotationLines(string $tag, string|array|null $value, string $prefix): array
     {
-        if (is_array($value)) {
+        if (is_array($value) && [] !== $value) {
             $lines = [];
             foreach ($value as $singleValue) {
                 $lines[] = rtrim($prefix.'@'.$tag.('' !== $singleValue ? ' '.$singleValue : ''));
@@ -432,7 +436,8 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
             return $lines;
         }
 
-        $value ??= '';
+        // null and an empty list both stand for a bare tag
+        $value = is_string($value) ? $value : '';
 
         return [rtrim($prefix.'@'.$tag.('' !== $value ? ' '.$value : ''))];
     }
@@ -457,7 +462,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
      */
     private function replaceDocBlock(Tokens $tokens, int $docBlockIndex, array $annotations, string $structureName): void
     {
-        $newDocBlock = $this->buildDocBlock($annotations, $structureName);
+        $newDocBlock = $this->buildDocBlock($annotations, $structureName, $this->getIndentBefore($tokens, $docBlockIndex));
         $tokens[$docBlockIndex] = new Token([\T_DOC_COMMENT, $newDocBlock]);
 
         // Ensure there's proper spacing after replaced DocBlock
@@ -475,34 +480,49 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         $separate = $this->resolvedConfiguration['separate'] ?? 'none';
         $insertIndex = $this->findInsertPosition($tokens, $structureIndex);
 
-        $tokensToInsert = [];
+        // The structure always starts on its own line, a blank line is only added on request.
+        // Both go into one whitespace token, since rules like no_blank_lines_after_phpdoc
+        // only inspect a single token.
+        $lineEnding = $this->whitespacesConfig->getLineEnding();
+        $indent = $this->getIndentBefore($tokens, $insertIndex);
+        $whitespaceAfter = str_repeat($lineEnding, in_array($separate, ['bottom', 'both'], true) ? 2 : 1).$indent;
 
-        // Add separation before comment if needed
+        $tokens->insertAt($insertIndex, [
+            new Token([\T_DOC_COMMENT, $this->buildDocBlock($annotations, $structureName, $indent)]),
+            new Token([\T_WHITESPACE, $whitespaceAfter]),
+        ]);
+
         if (in_array($separate, ['top', 'both'], true)) {
-            $tokensToInsert[] = new Token([\T_WHITESPACE, "\n"]);
+            $this->ensureBlankLineBefore($tokens, $insertIndex);
+        }
+    }
+
+    /**
+     * Reshapes the whitespace before the token into exactly one blank line instead of
+     * adding a second whitespace token next to it.
+     */
+    private function ensureBlankLineBefore(Tokens $tokens, int $index): void
+    {
+        $lineEnding = $this->whitespacesConfig->getLineEnding();
+
+        $tokens->ensureWhitespaceAtIndex($index - 1, 1, $lineEnding.$lineEnding.$this->getIndentBefore($tokens, $index));
+    }
+
+    /**
+     * Returns the indentation of the line the token starts on, or '' if it shares
+     * the line with other code.
+     */
+    private function getIndentBefore(Tokens $tokens, int $index): string
+    {
+        $previous = $tokens[$index - 1];
+        if (!$previous->isWhitespace()) {
+            return '';
         }
 
-        // Add the DocBlock
-        $docBlock = $this->buildDocBlock($annotations, $structureName);
-        $tokensToInsert[] = new Token([\T_DOC_COMMENT, $docBlock]);
+        $whitespace = $previous->getContent();
+        $lastNewline = strrpos($whitespace, "\n");
 
-        // Add a newline after the DocBlock if ensure_spacing is enabled (default)
-        // This prevents conflicts with single_line_after_imports and no_extra_blank_lines rules
-        $ensureSpacing = $this->resolvedConfiguration['ensure_spacing'] ?? true;
-        if ($ensureSpacing) {
-            $tokensToInsert[] = new Token([\T_WHITESPACE, "\n"]);
-        }
-
-        // Add additional separation if configured
-        if (in_array($separate, ['bottom', 'both'], true)) {
-            // Check if there's already whitespace after the structure declaration
-            $nextToken = $tokens[$structureIndex] ?? null;
-            if (null !== $nextToken && !$nextToken->isWhitespace()) {
-                $tokensToInsert[] = new Token([\T_WHITESPACE, "\n"]);
-            }
-        }
-
-        $tokens->insertAt($insertIndex, $tokensToInsert);
+        return false === $lastNewline ? '' : substr($whitespace, $lastNewline + 1);
     }
 
     /**
@@ -597,44 +617,30 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     }
 
     /**
-     * @param array<string, string|array<string>> $annotations
+     * @param array<string, string|array<string>|null> $annotations
      */
-    private function buildDocBlock(array $annotations, string $structureName): string
+    private function buildDocBlock(array $annotations, string $structureName, string $indent = ''): string
     {
+        $prefix = ' * ';
+        $lines = ['/**'];
+
         $addStructureName = $this->resolvedConfiguration['add_structure_name'] ?? false;
+        if ($addStructureName && '' !== $structureName) {
+            $lines[] = $prefix.$structureName.'.';
 
-        if (empty($annotations) && !$addStructureName) {
-            return "/**\n */";
-        }
-
-        $docBlock = "/**\n";
-
-        // Add structure name with dot if configured
-        if ($addStructureName && !empty($structureName)) {
-            $docBlock .= " * {$structureName}.\n";
-
-            // Add empty line after structure name if there are annotations - compatible with phpdoc_separation
-            if (!empty($annotations)) {
-                $docBlock .= " *\n";
+            // Blank line after the structure name, compatible with phpdoc_separation
+            if ([] !== $annotations) {
+                $lines[] = ' *';
             }
         }
 
         foreach ($annotations as $tag => $value) {
-            if (empty($value)) {
-                $docBlock .= " * @{$tag}\n";
-            } elseif (is_array($value)) {
-                // Handle multiple values for the same tag (e.g., multiple authors)
-                foreach ($value as $singleValue) {
-                    $docBlock .= " * @{$tag} {$singleValue}\n";
-                }
-            } else {
-                $docBlock .= " * @{$tag} {$value}\n";
-            }
+            array_push($lines, ...$this->formatAnnotationLines($tag, $value, $prefix));
         }
 
-        $docBlock .= ' */';
+        $lines[] = ' */';
 
-        return $docBlock;
+        return implode($this->whitespacesConfig->getLineEnding().$indent, $lines);
     }
 
     /**
@@ -643,16 +649,16 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     private function ensureProperSpacingAfterDocBlock(Tokens $tokens, int $docBlockIndex): void
     {
         $nextIndex = $docBlockIndex + 1;
-
-        // Check if the next token exists and is not already a newline
-        if ($nextIndex < $tokens->count()) {
-            $nextToken = $tokens[$nextIndex];
-
-            // If the next token is not whitespace or doesn't contain a newline, add one
-            if (!$nextToken->isWhitespace() || !str_contains($nextToken->getContent(), "\n")) {
-                // Insert a newline token after the DocBlock
-                $tokens->insertAt($nextIndex, [new Token([\T_WHITESPACE, "\n"])]);
-            }
+        if (!$tokens->offsetExists($nextIndex)) {
+            return;
         }
+
+        $nextToken = $tokens[$nextIndex];
+        if ($nextToken->isWhitespace() && str_contains($nextToken->getContent(), "\n")) {
+            return;
+        }
+
+        // Replaces a same-line space, so the structure does not keep it as indentation.
+        $tokens->ensureWhitespaceAtIndex($nextIndex, 0, $this->whitespacesConfig->getLineEnding().$this->getIndentBefore($tokens, $docBlockIndex));
     }
 }
