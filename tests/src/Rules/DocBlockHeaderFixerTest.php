@@ -182,6 +182,78 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertContains('ensure_spacing', $optionNames);
     }
 
+    public function testApplyFixAppendStrategyKeepsForeignEntries(): void
+    {
+        $code = "<?php\n/**\n * @author Someone Else <s@e.de>\n * @template T\n */\nfinal class Foo {}";
+        $tokens = Tokens::fromCode($code);
+
+        $this->fixer->configure(['annotations' => [
+            'author' => ['value' => 'Konrad <k@x.de>', 'strategy' => 'append'],
+            'license' => 'MIT',
+        ]]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame(
+            "<?php\n/**\n * @author Someone Else <s@e.de>\n * @template T\n * @author Konrad <k@x.de>\n * @license MIT\n */\nfinal class Foo {}",
+            $tokens->generateCode(),
+        );
+    }
+
+    public function testApplyFixAppendStrategyDoesNotDuplicatePresentValue(): void
+    {
+        $code = "<?php\n/**\n * @author Konrad <k@x.de>\n * @author Someone Else <s@e.de>\n */\nfinal class Foo {}";
+        $tokens = Tokens::fromCode($code);
+
+        $this->fixer->configure(['annotations' => [
+            'author' => ['value' => ['Konrad <k@x.de>', 'Jane <j@x.de>'], 'strategy' => 'append'],
+        ]]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame(
+            "<?php\n/**\n * @author Konrad <k@x.de>\n * @author Someone Else <s@e.de>\n * @author Jane <j@x.de>\n */\nfinal class Foo {}",
+            $tokens->generateCode(),
+        );
+    }
+
+    public function testApplyFixAppendStrategyKeepsForeignEntryInSingleLineDocBlock(): void
+    {
+        $tokens = Tokens::fromCode("<?php\n/** @author Jane <j@x.de> */\nfinal class Foo {}");
+
+        $this->fixer->configure(['annotations' => [
+            'author' => ['value' => 'Konrad <k@x.de>', 'strategy' => 'append'],
+        ]]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        $result = $tokens->generateCode();
+        self::assertStringContainsString('@author Jane <j@x.de>', $result);
+        self::assertStringContainsString('@author Konrad <k@x.de>', $result);
+    }
+
+    public function testApplyFixEnforceStrategyReplacesForeignEntries(): void
+    {
+        $code = "<?php\n/**\n * @author Someone Else <s@e.de>\n */\nfinal class Foo {}";
+        $tokens = Tokens::fromCode($code);
+
+        $this->fixer->configure(['annotations' => [
+            'author' => ['value' => 'Konrad <k@x.de>', 'strategy' => 'enforce'],
+        ]]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame("<?php\n/**\n * @author Konrad <k@x.de>\n */\nfinal class Foo {}", $tokens->generateCode());
+    }
+
+    public function testApplyFixStrategyFormInNewDocBlock(): void
+    {
+        $tokens = Tokens::fromCode("<?php\nfinal class Foo {}");
+
+        $this->fixer->configure(['annotations' => [
+            'author' => ['value' => 'Konrad <k@x.de>', 'strategy' => 'append'],
+        ]]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame("<?php\n/**\n * @author Konrad <k@x.de>\n */\nfinal class Foo {}", $tokens->generateCode());
+    }
+
     public function testConfigureRejectsInvalidAnnotationKey(): void
     {
         $this->expectException(InvalidFixerConfigurationException::class);
