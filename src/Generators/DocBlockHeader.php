@@ -92,26 +92,12 @@ final readonly class DocBlockHeader implements Generator
 
         $annotations = [];
 
-        $authors = ComposerService::extractAuthors($composerData);
-        if (!empty($authors)) {
-            if (count($authors) > 1) {
-                $authorStrings = [];
-                foreach ($authors as $author) {
-                    $authorString = $author['name'];
-                    if (isset($author['email'])) {
-                        $authorString .= sprintf(' <%s>', $author['email']);
-                    }
-                    $authorStrings[] = $authorString;
-                }
-                $annotations['author'] = $authorStrings;
-            } else {
-                $primaryAuthor = $authors[0];
-                $authorString = $primaryAuthor['name'];
-                if (isset($primaryAuthor['email'])) {
-                    $authorString .= sprintf(' <%s>', $primaryAuthor['email']);
-                }
-                $annotations['author'] = $authorString;
-            }
+        $authors = array_map(
+            static fn (array $author): string => isset($author['email']) ? sprintf('%s <%s>', $author['name'], $author['email']) : $author['name'],
+            ComposerService::extractAuthors($composerData),
+        );
+        if ([] !== $authors) {
+            $annotations['author'] = 1 === count($authors) ? $authors[0] : $authors;
         }
 
         $license = ComposerService::extractLicense($composerData);
