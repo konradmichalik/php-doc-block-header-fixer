@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace KonradMichalik\PhpDocBlockHeaderFixer\Tests\Rules;
 
 use KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer;
+use PhpCsFixer\ConfigurationException\InvalidFixerConfigurationException;
 use PhpCsFixer\Tokenizer\Tokens;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -179,6 +180,36 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertContains('separate', $optionNames);
         self::assertContains('add_structure_name', $optionNames);
         self::assertContains('ensure_spacing', $optionNames);
+    }
+
+    public function testConfigureRejectsInvalidAnnotationKey(): void
+    {
+        $this->expectException(InvalidFixerConfigurationException::class);
+        $this->expectExceptionMessage('Invalid annotation key "foo bar".');
+
+        $this->fixer->configure(['annotations' => ['foo bar' => 'x']]);
+    }
+
+    public function testConfigureRejectsInvalidAnnotationValue(): void
+    {
+        $this->expectException(InvalidFixerConfigurationException::class);
+        $this->expectExceptionMessage('Value of annotation "since" must be a string, a list of strings or null, bool given');
+
+        $this->fixer->configure(['annotations' => ['since' => true]]);
+    }
+
+    public function testApplyFixMergesScalarAnnotationValueIntoExistingDocBlock(): void
+    {
+        $code = "<?php\n/**\n * @since 2023\n */\nclass Foo {}";
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure(['annotations' => ['since' => 2024]]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        self::assertSame("<?php\n/**\n * @since 2024\n */\nclass Foo {}", $tokens->generateCode());
     }
 
     public function testParseExistingAnnotations(): void
