@@ -476,34 +476,45 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         $separate = $this->resolvedConfiguration['separate'] ?? 'none';
         $insertIndex = $this->findInsertPosition($tokens, $structureIndex);
 
-        $tokensToInsert = [];
+        // The structure always starts on its own line, a blank line is only added on request.
+        // Both go into one whitespace token, since rules like no_blank_lines_after_phpdoc
+        // only inspect a single token.
+        $whitespaceAfter = (in_array($separate, ['bottom', 'both'], true) ? "\n\n" : "\n").$this->getIndentBefore($tokens, $insertIndex);
 
-        // Add separation before comment if needed
+        $tokens->insertAt($insertIndex, [
+            new Token([\T_DOC_COMMENT, $this->buildDocBlock($annotations, $structureName)]),
+            new Token([\T_WHITESPACE, $whitespaceAfter]),
+        ]);
+
         if (in_array($separate, ['top', 'both'], true)) {
-            $tokensToInsert[] = new Token([\T_WHITESPACE, "\n"]);
+            $this->ensureBlankLineBefore($tokens, $insertIndex);
+        }
+    }
+
+    /**
+     * Reshapes the whitespace before the token into exactly one blank line instead of
+     * adding a second whitespace token next to it.
+     */
+    private function ensureBlankLineBefore(Tokens $tokens, int $index): void
+    {
+        $tokens->ensureWhitespaceAtIndex($index - 1, 1, "\n\n".$this->getIndentBefore($tokens, $index));
+    }
+
+    /**
+     * Returns the indentation of the line the token starts on, or '' if it shares
+     * the line with other code.
+     */
+    private function getIndentBefore(Tokens $tokens, int $index): string
+    {
+        $previous = $tokens[$index - 1];
+        if (!$previous->isWhitespace()) {
+            return '';
         }
 
-        // Add the DocBlock
-        $docBlock = $this->buildDocBlock($annotations, $structureName);
-        $tokensToInsert[] = new Token([\T_DOC_COMMENT, $docBlock]);
+        $whitespace = $previous->getContent();
+        $lastNewline = strrpos($whitespace, "\n");
 
-        // Add a newline after the DocBlock if ensure_spacing is enabled (default)
-        // This prevents conflicts with single_line_after_imports and no_extra_blank_lines rules
-        $ensureSpacing = $this->resolvedConfiguration['ensure_spacing'] ?? true;
-        if ($ensureSpacing) {
-            $tokensToInsert[] = new Token([\T_WHITESPACE, "\n"]);
-        }
-
-        // Add additional separation if configured
-        if (in_array($separate, ['bottom', 'both'], true)) {
-            // Check if there's already whitespace after the structure declaration
-            $nextToken = $tokens[$structureIndex] ?? null;
-            if (null !== $nextToken && !$nextToken->isWhitespace()) {
-                $tokensToInsert[] = new Token([\T_WHITESPACE, "\n"]);
-            }
-        }
-
-        $tokens->insertAt($insertIndex, $tokensToInsert);
+        return false === $lastNewline ? '' : substr($whitespace, $lastNewline + 1);
     }
 
     /**
@@ -644,16 +655,16 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     private function ensureProperSpacingAfterDocBlock(Tokens $tokens, int $docBlockIndex): void
     {
         $nextIndex = $docBlockIndex + 1;
-
-        // Check if the next token exists and is not already a newline
-        if ($nextIndex < $tokens->count()) {
-            $nextToken = $tokens[$nextIndex];
-
-            // If the next token is not whitespace or doesn't contain a newline, add one
-            if (!$nextToken->isWhitespace() || !str_contains($nextToken->getContent(), "\n")) {
-                // Insert a newline token after the DocBlock
-                $tokens->insertAt($nextIndex, [new Token([\T_WHITESPACE, "\n"])]);
-            }
+        if (!$tokens->offsetExists($nextIndex)) {
+            return;
         }
+
+        $nextToken = $tokens[$nextIndex];
+        if ($nextToken->isWhitespace() && str_contains($nextToken->getContent(), "\n")) {
+            return;
+        }
+
+        // Replaces a same-line space, so the structure does not keep it as indentation.
+        $tokens->ensureWhitespaceAtIndex($nextIndex, 0, "\n".$this->getIndentBefore($tokens, $docBlockIndex));
     }
 }
