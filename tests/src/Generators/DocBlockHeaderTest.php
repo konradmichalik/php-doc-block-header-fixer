@@ -46,7 +46,7 @@ final class DocBlockHeaderTest extends TestCase
 
         self::assertSame($annotations, $docBlockHeader->annotations);
         self::assertTrue($docBlockHeader->preserveExisting);
-        self::assertSame(Separate::Both, $docBlockHeader->separate);
+        self::assertSame(Separate::None, $docBlockHeader->separate);
     }
 
     public function testCreateWithCustomParameters(): void
@@ -86,7 +86,8 @@ final class DocBlockHeaderTest extends TestCase
                 'annotations' => $annotations,
                 'preserve_existing' => false,
                 'separate' => 'top',
-                'add_structure_name' => true,
+                'add_structure_name' => false,
+                'ensure_spacing' => true,
             ],
         ];
 
@@ -104,8 +105,9 @@ final class DocBlockHeaderTest extends TestCase
             'KonradMichalik/docblock_header_comment' => [
                 'annotations' => $annotations,
                 'preserve_existing' => true,
-                'separate' => 'both',
-                'add_structure_name' => true,
+                'separate' => 'none',
+                'add_structure_name' => false,
+                'ensure_spacing' => true,
             ],
         ];
 
@@ -194,12 +196,17 @@ final class DocBlockHeaderTest extends TestCase
         DocBlockHeader::create(['invalid@key' => 'value']);
     }
 
-    public function testValidateAnnotationsThrowsExceptionForUnknownAnnotation(): void
+    public function testValidateAnnotationsAcceptsAnySyntacticallyValidTag(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown annotation "unknownAnnotation"');
+        $annotations = [
+            'template' => 'T',
+            'phpstan-type' => 'Foo array{bar: int}',
+            'psalm-immutable' => null,
+            'used_by' => 'Something',
+            'author2' => 'John Doe',
+        ];
 
-        DocBlockHeader::create(['unknownAnnotation' => 'value']);
+        self::assertSame($annotations, DocBlockHeader::create($annotations)->annotations);
     }
 
     public function testValidateAnnotationsAcceptsValidKeyWithHyphen(): void
@@ -209,32 +216,13 @@ final class DocBlockHeaderTest extends TestCase
         self::assertSame(['property-read' => '$property'], $docBlockHeader->annotations);
     }
 
-    public function testValidateAnnotationsRejectsKeyWithUnderscore(): void
-    {
-        // This should throw an exception because 'used_by' with underscore is not in allowed list
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown annotation "used_by"');
-
-        DocBlockHeader::create(['used_by' => 'Something']);
-    }
-
-    public function testValidateAnnotationsAcceptsValidKeyWithNumbers(): void
-    {
-        // Note: There are no standard annotations with numbers in the allowed list
-        // Let's test that validation works correctly for keys with numbers
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown annotation "author2"');
-
-        DocBlockHeader::create(['author2' => 'John Doe']);
-    }
-
     public function testCreateWithEmptyAnnotations(): void
     {
         $docBlockHeader = DocBlockHeader::create([]);
 
         self::assertSame([], $docBlockHeader->annotations);
         self::assertTrue($docBlockHeader->preserveExisting);
-        self::assertSame(Separate::Both, $docBlockHeader->separate);
+        self::assertSame(Separate::None, $docBlockHeader->separate);
     }
 
     public function testPropertiesAreReadonly(): void
@@ -243,7 +231,7 @@ final class DocBlockHeaderTest extends TestCase
 
         self::assertSame(['author' => 'John Doe'], $docBlockHeader->annotations);
         self::assertTrue($docBlockHeader->preserveExisting);
-        self::assertSame(Separate::Both, $docBlockHeader->separate);
+        self::assertSame(Separate::None, $docBlockHeader->separate);
 
         // Properties should be readonly - but we can't test this directly in PHP 8.1+
         // The readonly modifier is enforced at the language level
@@ -263,6 +251,19 @@ final class DocBlockHeaderTest extends TestCase
         $reflection = new ReflectionClass(DocBlockHeader::class);
 
         self::assertTrue($reflection->isFinal());
+    }
+
+    public function testCreateWithEnsureSpacingDisabled(): void
+    {
+        $docBlockHeader = DocBlockHeader::create(['author' => 'John Doe'], ensureSpacing: false);
+
+        self::assertFalse($docBlockHeader->ensureSpacing);
+        self::assertFalse($docBlockHeader->__toArray()['KonradMichalik/docblock_header_comment']['ensure_spacing']);
+    }
+
+    public function testCreateCastsNumericAnnotationValues(): void
+    {
+        self::assertSame(['since' => '2024'], DocBlockHeader::create(['since' => 2024])->annotations);
     }
 
     public function testCreateWithAddStructureName(): void
@@ -299,6 +300,7 @@ final class DocBlockHeaderTest extends TestCase
                 'preserve_existing' => false,
                 'separate' => 'top',
                 'add_structure_name' => true,
+                'ensure_spacing' => true,
             ],
         ];
 
@@ -324,7 +326,7 @@ final class DocBlockHeaderTest extends TestCase
             self::assertSame('John Doe <john@example.com>', $docBlockHeader->annotations['author']);
             self::assertSame('MIT', $docBlockHeader->annotations['license']);
             self::assertTrue($docBlockHeader->preserveExisting);
-            self::assertSame(Separate::Both, $docBlockHeader->separate);
+            self::assertSame(Separate::None, $docBlockHeader->separate);
         } finally {
             unlink($testComposerPath);
         }

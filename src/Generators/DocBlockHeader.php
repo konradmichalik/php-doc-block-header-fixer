@@ -13,14 +13,10 @@ declare(strict_types=1);
 
 namespace KonradMichalik\PhpDocBlockHeaderFixer\Generators;
 
-use InvalidArgumentException;
 use KonradMichalik\PhpDocBlockHeaderFixer\Enum\Separate;
-use KonradMichalik\PhpDocBlockHeaderFixer\Service\ComposerService;
+use KonradMichalik\PhpDocBlockHeaderFixer\Service\{AnnotationService, ComposerService};
 
 use function count;
-use function gettype;
-use function in_array;
-use function is_string;
 use function sprintf;
 
 /**
@@ -32,11 +28,12 @@ use function sprintf;
 final readonly class DocBlockHeader implements Generator
 {
     private function __construct(
-        /** @var array<string, string|array<string>> */
+        /** @var array<string, string|array<string>|null> */
         public array $annotations,
         public bool $preserveExisting,
         public Separate $separate,
         public bool $addStructureName,
+        public bool $ensureSpacing,
     ) {}
 
     /**
@@ -50,33 +47,34 @@ final readonly class DocBlockHeader implements Generator
                 'preserve_existing' => $this->preserveExisting,
                 'separate' => $this->separate->value,
                 'add_structure_name' => $this->addStructureName,
+                'ensure_spacing' => $this->ensureSpacing,
             ],
         ];
     }
 
     /**
-     * @param array<string, string|array<string>> $annotations
+     * @param array<string, string|int|float|list<string|int|float>|null> $annotations
      */
     public static function create(
         array $annotations,
         bool $preserveExisting = true,
-        Separate $separate = Separate::Both,
-        bool $addStructureName = true,
+        Separate $separate = Separate::None,
+        bool $addStructureName = false,
+        bool $ensureSpacing = true,
     ): self {
-        self::validateAnnotations($annotations);
-
-        return new self($annotations, $preserveExisting, $separate, $addStructureName);
+        return new self(AnnotationService::normalize($annotations), $preserveExisting, $separate, $addStructureName, $ensureSpacing);
     }
 
     /**
-     * @param array<string, string|array<string>> $additionalAnnotations
+     * @param array<string, string|int|float|list<string|int|float>|null> $additionalAnnotations
      */
     public static function fromComposer(
         string $composerJsonPath = 'composer.json',
         array $additionalAnnotations = [],
         bool $preserveExisting = true,
-        Separate $separate = Separate::Both,
-        bool $addStructureName = true,
+        Separate $separate = Separate::None,
+        bool $addStructureName = false,
+        bool $ensureSpacing = true,
     ): self {
         $composerData = ComposerService::readComposerJson($composerJsonPath);
 
@@ -111,40 +109,6 @@ final readonly class DocBlockHeader implements Generator
 
         $annotations = [...$annotations, ...$additionalAnnotations];
 
-        return self::create($annotations, $preserveExisting, $separate, $addStructureName);
-    }
-
-    /**
-     * @param array<string, string|array<string>> $annotations
-     */
-    private static function validateAnnotations(array $annotations): void
-    {
-        $allowedAnnotations = [
-            'author', 'copyright', 'license', 'version', 'since', 'package', 'subpackage',
-            'see', 'link', 'todo', 'fixme', 'deprecated', 'internal', 'api', 'category',
-            'example', 'ignore', 'uses', 'used-by', 'throws', 'method', 'property',
-            'property-read', 'property-write', 'param', 'return', 'var', 'global',
-            'static', 'final', 'abstract',
-        ];
-
-        foreach ($annotations as $key => $value) {
-            // PHPStan knows $key is string from PHPDoc, but we still validate at runtime
-            /* @phpstan-ignore-next-line function.alreadyNarrowedType */
-            if (!is_string($key)) {
-                throw new InvalidArgumentException(sprintf('Annotation key must be a string, %s given', gettype($key)));
-            }
-
-            if (empty(trim($key))) {
-                throw new InvalidArgumentException('Annotation key cannot be empty');
-            }
-
-            if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_-]*$/', $key)) {
-                throw new InvalidArgumentException(sprintf('Invalid annotation key "%s". Must start with letter and contain only letters, numbers, underscore, or dash.', $key));
-            }
-
-            if (!in_array($key, $allowedAnnotations, true)) {
-                throw new InvalidArgumentException(sprintf('Unknown annotation "%s". Allowed annotations: %s', $key, implode(', ', $allowedAnnotations)));
-            }
-        }
+        return self::create($annotations, $preserveExisting, $separate, $addStructureName, $ensureSpacing);
     }
 }
