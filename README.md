@@ -126,6 +126,8 @@ return (new PhpCsFixer\Config())
 ;
 ```
 
+Both factories use the same defaults as the plain rule configuration below and accept any syntactically valid tag, e.g. `template` or `phpstan-type`.
+
 ## ⚙️ Configuration
 
 - `annotations` (array): DocBlock annotations to add to classes

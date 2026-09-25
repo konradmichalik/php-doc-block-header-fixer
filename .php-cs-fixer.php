@@ -14,6 +14,7 @@ declare(strict_types=1);
 use KonradMichalik\PhpCsFixerPreset\Config;
 use KonradMichalik\PhpCsFixerPreset\Rules\Header;
 use KonradMichalik\PhpCsFixerPreset\Rules\Set\RuleSet;
+use KonradMichalik\PhpDocBlockHeaderFixer\Enum\Separate;
 use KonradMichalik\PhpDocBlockHeaderFixer\Generators\DocBlockHeader;
 use KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer;
 use Symfony\Component\Finder\Finder;
@@ -27,7 +28,7 @@ return Config::create()
     )
     ->withRule(
         RuleSet::fromArray(
-            DocBlockHeader::fromComposer()->__toArray(),
+            DocBlockHeader::fromComposer(separate: Separate::Both, addStructureName: true)->__toArray(),
         ),
     )
     ->withFinder(static fn (Finder $finder) => $finder->in(__DIR__))
