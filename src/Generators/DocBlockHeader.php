@@ -37,6 +37,7 @@ final readonly class DocBlockHeader implements Generator
         public bool $preserveExisting,
         public Separate $separate,
         public bool $addStructureName,
+        public bool $replaceStaleStructureName,
     ) {}
 
     /**
@@ -50,6 +51,7 @@ final readonly class DocBlockHeader implements Generator
                 'preserve_existing' => $this->preserveExisting,
                 'separate' => $this->separate->value,
                 'add_structure_name' => $this->addStructureName,
+                'replace_stale_structure_name' => $this->replaceStaleStructureName,
             ],
         ];
     }
@@ -62,10 +64,11 @@ final readonly class DocBlockHeader implements Generator
         bool $preserveExisting = true,
         Separate $separate = Separate::Both,
         bool $addStructureName = true,
+        bool $replaceStaleStructureName = false,
     ): self {
         self::validateAnnotations($annotations);
 
-        return new self($annotations, $preserveExisting, $separate, $addStructureName);
+        return new self($annotations, $preserveExisting, $separate, $addStructureName, $replaceStaleStructureName);
     }
 
     /**
@@ -77,6 +80,7 @@ final readonly class DocBlockHeader implements Generator
         bool $preserveExisting = true,
         Separate $separate = Separate::Both,
         bool $addStructureName = true,
+        bool $replaceStaleStructureName = false,
     ): self {
         $composerData = ComposerService::readComposerJson($composerJsonPath);
 
@@ -111,7 +115,7 @@ final readonly class DocBlockHeader implements Generator
 
         $annotations = [...$annotations, ...$additionalAnnotations];
 
-        return self::create($annotations, $preserveExisting, $separate, $addStructureName);
+        return self::create($annotations, $preserveExisting, $separate, $addStructureName, $replaceStaleStructureName);
     }
 
     /**
