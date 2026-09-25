@@ -88,6 +88,7 @@ final class DocBlockHeaderTest extends TestCase
                 'separate' => 'top',
                 'add_structure_name' => false,
                 'ensure_spacing' => true,
+                'replace_stale_structure_name' => false,
             ],
         ];
 
@@ -108,6 +109,7 @@ final class DocBlockHeaderTest extends TestCase
                 'separate' => 'none',
                 'add_structure_name' => false,
                 'ensure_spacing' => true,
+                'replace_stale_structure_name' => false,
             ],
         ];
 
@@ -266,6 +268,14 @@ final class DocBlockHeaderTest extends TestCase
         self::assertSame(['since' => '2024'], DocBlockHeader::create(['since' => 2024])->annotations);
     }
 
+    public function testCreateWithReplaceStaleStructureName(): void
+    {
+        $docBlockHeader = DocBlockHeader::create(['author' => 'John Doe'], replaceStaleStructureName: true);
+
+        self::assertTrue($docBlockHeader->replaceStaleStructureName);
+        self::assertTrue($docBlockHeader->__toArray()['KonradMichalik/docblock_header_comment']['replace_stale_structure_name']);
+    }
+
     public function testCreateWithAddStructureName(): void
     {
         $annotations = ['author' => 'John Doe'];
@@ -301,6 +311,7 @@ final class DocBlockHeaderTest extends TestCase
                 'separate' => 'top',
                 'add_structure_name' => true,
                 'ensure_spacing' => true,
+                'replace_stale_structure_name' => false,
             ],
         ];
 
