@@ -15,12 +15,10 @@ namespace KonradMichalik\PhpDocBlockHeaderFixer\Generators;
 
 use InvalidArgumentException;
 use KonradMichalik\PhpDocBlockHeaderFixer\Enum\Separate;
-use KonradMichalik\PhpDocBlockHeaderFixer\Service\ComposerService;
+use KonradMichalik\PhpDocBlockHeaderFixer\Service\{AnnotationService, ComposerService};
 
 use function count;
-use function gettype;
 use function in_array;
-use function is_string;
 use function sprintf;
 
 /**
@@ -127,21 +125,9 @@ final readonly class DocBlockHeader implements Generator
             'static', 'final', 'abstract',
         ];
 
-        foreach ($annotations as $key => $value) {
-            // PHPStan knows $key is string from PHPDoc, but we still validate at runtime
-            /* @phpstan-ignore-next-line function.alreadyNarrowedType */
-            if (!is_string($key)) {
-                throw new InvalidArgumentException(sprintf('Annotation key must be a string, %s given', gettype($key)));
-            }
+        AnnotationService::normalize($annotations);
 
-            if (empty(trim($key))) {
-                throw new InvalidArgumentException('Annotation key cannot be empty');
-            }
-
-            if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_-]*$/', $key)) {
-                throw new InvalidArgumentException(sprintf('Invalid annotation key "%s". Must start with letter and contain only letters, numbers, underscore, or dash.', $key));
-            }
-
+        foreach (array_keys($annotations) as $key) {
             if (!in_array($key, $allowedAnnotations, true)) {
                 throw new InvalidArgumentException(sprintf('Unknown annotation "%s". Allowed annotations: %s', $key, implode(', ', $allowedAnnotations)));
             }
