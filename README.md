@@ -51,7 +51,7 @@ return (new PhpCsFixer\Config())
         new KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer(),
     ])
     ->setRules([
-        KonradMichalik\PhpDocBlockHeaderFixer\Generators\DocBlockHeader::fromComposer()->toArray(),
+        KonradMichalik\PhpDocBlockHeaderFixer\Generators\DocBlockHeader::fromComposer(addStructureName: true)->toArray(),
     ])
 ;
 ```
