@@ -11,131 +11,86 @@
 
 </div>
 
-This packages contains a [PHP-CS-Fixer](https://github.com/PHP-CS-Fixer/PHP-CS-Fixer) rule to automatically fix the header regarding PHP DocBlocks for classes, interfaces, traits and enums.
+PHP-CS-Fixer ships rules for DocBlock content and spacing, but none of them add or enforce header annotations such as `@author` and `@license` before a class, interface, trait or enum. Keeping those in sync by hand means every renamed class or licence change turns into a manual find-and-replace across the codebase. This package adds a configurable PHP-CS-Fixer rule that generates and enforces the annotations you configure, while leaving the rest of an existing DocBlock, descriptions, other tags, ordering untouched.
 
-**Before:**
+## ✨ Features
+
+- [**Configurable annotations**](docs/configuration.md): add any tag (`@author`, `@license`, `@template`, `@phpstan-type`, …), each enforced or appended independently
+- [**Composer autodiscovery**](docs/usage.md#fromcomposer): `fromComposer()` reads authors and licence straight from `composer.json`, so the header never drifts from the package metadata
+- **Preserves existing DocBlocks**: descriptions, other tags and ordering survive; only the configured annotations are enforced
+- [**Structure name summaries**](docs/configuration.md#add_structure_name): optionally prepend the class, interface, trait or enum name as the DocBlock's first line, with stale-name replacement on rename
+- **PHP-CS-Fixer compatible**: avoids conflicts with `phpdoc_no_package`, `phpdoc_separation` and `no_blank_lines_after_phpdoc`
+
+## 🔥 Installation
+
+### Requirements
+
+- PHP 8.2, 8.3, 8.4 or 8.5
+- `ext-tokenizer` (bundled with PHP by default)
+- `friendsofphp/php-cs-fixer` ^3.14 (installed automatically as a dependency)
+
+### Composer
+
+[![Packagist](https://img.shields.io/packagist/v/konradmichalik/php-doc-block-header-fixer?label=version&logo=packagist)](https://packagist.org/packages/konradmichalik/php-doc-block-header-fixer)
+[![Packagist Downloads](https://img.shields.io/packagist/dt/konradmichalik/php-doc-block-header-fixer?color=brightgreen)](https://packagist.org/packages/konradmichalik/php-doc-block-header-fixer)
+
+```bash
+composer require --dev konradmichalik/php-doc-block-header-fixer
+```
+
+## 🚀 Quick start
+
+Register the fixer and read authors and licence straight from your `composer.json`:
+
+```php
+<?php
+// ...
+return (new PhpCsFixer\Config())
+    // ...
+    ->registerCustomFixers([
+        new KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer(),
+    ])
+    ->setRules([
+        KonradMichalik\PhpDocBlockHeaderFixer\Generators\DocBlockHeader::fromComposer(addStructureName: true)->toArray(),
+    ])
+;
+```
+
+Running `php-cs-fixer fix` now turns
 
 ```php
 <?php
 
 class MyClass
 {
-    public function myMethod()
-    {
-        // ...
-    }
+    public function myMethod(): void {}
 }
-
-interface MyInterface {}
-trait MyTrait {}
-enum MyEnum {}
 ```
 
-**After:**
+into
 
 ```php
 <?php
 /**
  * MyClass.
  *
- * @author Your Name <your@email.org>
- * @license GPL-3.0-or-later
+ * @author Jane Doe <jane@example.com>
+ * @license MIT
  */
 class MyClass
 {
-    // ...
+    public function myMethod(): void {}
 }
 ```
 
-## 🔥 Installation
+The same happens for interfaces, traits and enums. See [Usage](docs/usage.md) for the plain-array and object-oriented alternatives to `fromComposer()`.
 
-[![Packagist](https://img.shields.io/packagist/v/konradmichalik/php-doc-block-header-fixer?label=version&logo=packagist)](https://packagist.org/packages/konradmichalik/php-doc-block-header-fixer)
-[![Packagist Downloads](https://img.shields.io/packagist/dt/konradmichalik/php-doc-block-header-fixer?color=brightgreen)](https://packagist.org/packages/konradmichalik/php-doc-block-header-fixer)
+## 📚 Documentation
 
-
-```bash
-composer require --dev konradmichalik/php-doc-block-header-fixer
-```
-
-## ⚡ Usage
-
-Add the PHP-CS-Fixer rule in your `.php-cs-fixer.php` file:
-
-> [!NOTE]
-> This fixer is compatible with standard PHP-CS-Fixer rules. It avoids adding annotations that conflict with rules like `phpdoc_no_package` and follows spacing conventions compatible with `phpdoc_separation`.
-
-```php
-<?php
-// ...
-return (new PhpCsFixer\Config())
-    // ...
-    ->registerCustomFixers([
-        new KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer()
-    ])
-    ->setRules([
-        'KonradMichalik/docblock_header_comment' => [
-            'annotations' => [
-                'author' => 'Konrad Michalik <hej@konradmichalik.dev>',
-                'license' => 'GPL-3.0-or-later',
-            ],
-            'preserve_existing' => true,
-            'separate' => 'none',
-            'add_structure_name' => true,
-        ],
-    ])
-;
-```
-
-Alternatively, you can use a object-oriented configuration:
-
-```php
-<?php
-// ...
-return (new PhpCsFixer\Config())
-    // ...
-    ->registerCustomFixers([
-        new KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer()
-    ])
-    ->setRules([
-        KonradMichalik\PhpDocBlockHeaderFixer\Generators\DocBlockHeader::create(
-            [
-                'author' => 'Konrad Michalik <hej@konradmichalik.dev>',
-                'license' => 'GPL-3.0-or-later',
-            ],
-            preserveExisting: true,
-            separate: \KonradMichalik\PhpDocBlockHeaderFixer\Enum\Separate::None,
-            addStructureName: true
-        )->toArray()
-    ])
-;
-```
-
-Or even simpler, automatically read all authors and license from your `composer.json`:
-
-```php
-<?php
-// ...
-return (new PhpCsFixer\Config())
-    // ...
-    ->registerCustomFixers([
-        new KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer()
-    ])
-    ->setRules([
-        KonradMichalik\PhpDocBlockHeaderFixer\Generators\DocBlockHeader::fromComposer()->toArray()
-    ])
-;
-```
-
-Both factories use the same defaults as the plain rule configuration below and accept any syntactically valid tag, e.g. `template` or `phpstan-type`.
-
-## ⚙️ Configuration
-
-- `annotations` (array): DocBlock annotations to add to classes. A value is a string, a list of strings or `null` for a bare tag. To keep foreign entries of a tag, use the strategy form: `'author' => ['value' => 'Konrad <k@x.de>', 'strategy' => 'append']` adds the configured value only if it is missing and leaves other `@author` lines alone. The default strategy `enforce` replaces existing entries, as described under `preserve_existing`
-- `preserve_existing` (boolean, default: true): Keep everything the configuration does not mention (descriptions, other annotations, ordering). The configured annotations themselves are enforced (unless their strategy is `append`): an existing occurrence is rewritten to the configured value and duplicates of the same tag are collapsed. One exception: an annotation sitting on the opening (`/**`) or closing (`*/`) line of an existing multi-line DocBlock is left alone, because rewriting it would take the delimiter with it. Single-line DocBlocks such as `/** Handles requests. */` are expanded first, so their content is kept and enforced like any other line. Set to `false` to discard the existing DocBlock entirely and rebuild it from the configuration.
-- `separate` (string, default: 'none'): Blank lines around a new DocBlock. `top` ensures exactly one blank line before it, `bottom` adds one between DocBlock and structure, `both` does both, `none` adds neither. Note that `no_blank_lines_after_phpdoc` (part of `@Symfony`) removes the `bottom` blank line again
-- `add_structure_name` (boolean, default: false): Add the structure name as first line in the DocBlock. If the existing first line is something else, the name is prepended above it.
-- `replace_stale_structure_name` (boolean, default: false): With `add_structure_name`, rewrite an existing first line that consists of a bare identifier followed by a dot (`OldName.`) instead of prepending, so a renamed class does not accumulate its former name. Trade-off: a one-word description such as `Deprecated.` or `Helper.` looks exactly like a former name and is rewritten as well.
-- `ensure_spacing` (boolean, default: true): Move the structure onto its own line after an existing DocBlock that shares its line (e.g. `/** @internal */ final class Foo`). A new DocBlock is always followed by a newline
+| Topic | What's inside |
+|-------|---------------|
+| [Usage](docs/usage.md) | Registering the fixer: plain array, object-oriented builder, and `fromComposer()` autodiscovery |
+| [Configuration](docs/configuration.md) | Every option with its type, default and effect |
 
 ## 🧑‍💻 Contributing
 
