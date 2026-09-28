@@ -28,7 +28,7 @@ use function sprintf;
 final readonly class DocBlockHeader implements Generator
 {
     private function __construct(
-        /** @var array<string, string|array<string>|null> */
+        /** @var array<string, string|list<string>|array{value: string|list<string>|null, strategy: string}|null> */
         public array $annotations,
         public bool $preserveExisting,
         public Separate $separate,
