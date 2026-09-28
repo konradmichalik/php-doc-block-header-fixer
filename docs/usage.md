@@ -56,7 +56,7 @@ return (new PhpCsFixer\Config())
 
 ## `fromComposer()`
 
-Reads `author` (from the `authors` array) and `license` from `composer.json`, so the DocBlock header never drifts out of sync with the package metadata. `composer.json` has no field for tags like `@template`, so `$additionalAnnotations` lets you add them on top of the autodiscovered `author` and `license`, here adding `@template T` to a generic class:
+Reads `author` (from the `authors` array) and `license` from `composer.json`, so the DocBlock header never drifts out of sync with the package metadata. `composer.json` has no field for tags like `@template`, so `$additionalAnnotations` lets you add them on top of the autodiscovered `author` and `license`, here adding `@template T` to a generic class. A key that also exists in the autodiscovered set (`author` or `license`) overrides the Composer-derived value instead of merging with it.
 
 ```php
 <?php
