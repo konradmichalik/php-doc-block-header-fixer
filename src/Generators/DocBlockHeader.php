@@ -34,6 +34,7 @@ final readonly class DocBlockHeader implements Generator
         public Separate $separate,
         public bool $addStructureName,
         public bool $ensureSpacing,
+        public bool $replaceStaleStructureName,
     ) {}
 
     /**
@@ -58,6 +59,7 @@ final readonly class DocBlockHeader implements Generator
                 'separate' => $this->separate->value,
                 'add_structure_name' => $this->addStructureName,
                 'ensure_spacing' => $this->ensureSpacing,
+                'replace_stale_structure_name' => $this->replaceStaleStructureName,
             ],
         ];
     }
@@ -71,8 +73,9 @@ final readonly class DocBlockHeader implements Generator
         Separate $separate = Separate::None,
         bool $addStructureName = false,
         bool $ensureSpacing = true,
+        bool $replaceStaleStructureName = false,
     ): self {
-        return new self(AnnotationService::normalize($annotations), $preserveExisting, $separate, $addStructureName, $ensureSpacing);
+        return new self(AnnotationService::normalize($annotations), $preserveExisting, $separate, $addStructureName, $ensureSpacing, $replaceStaleStructureName);
     }
 
     /**
@@ -85,6 +88,7 @@ final readonly class DocBlockHeader implements Generator
         Separate $separate = Separate::None,
         bool $addStructureName = false,
         bool $ensureSpacing = true,
+        bool $replaceStaleStructureName = false,
     ): self {
         $composerData = ComposerService::readComposerJson($composerJsonPath);
 
@@ -105,6 +109,6 @@ final readonly class DocBlockHeader implements Generator
 
         $annotations = [...$annotations, ...$additionalAnnotations];
 
-        return self::create($annotations, $preserveExisting, $separate, $addStructureName, $ensureSpacing);
+        return self::create($annotations, $preserveExisting, $separate, $addStructureName, $ensureSpacing, $replaceStaleStructureName);
     }
 }
