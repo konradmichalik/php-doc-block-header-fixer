@@ -353,6 +353,25 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertSame($expected, $tokens->generateCode());
     }
 
+    public function testApplyFixAddsDocBlockToEveryStructureInOneRun(): void
+    {
+        $code = '<?php';
+        for ($i = 1; $i <= 40; ++$i) {
+            $code .= " interface I{$i} {}";
+        }
+        $tokens = Tokens::fromCode($code);
+        $file = new SplFileInfo(__FILE__);
+
+        $method = new ReflectionMethod($this->fixer, 'applyFix');
+
+        $this->fixer->configure([
+            'annotations' => ['author' => 'John Doe'],
+        ]);
+        $method->invoke($this->fixer, $file, $tokens);
+
+        self::assertSame(40, substr_count($tokens->generateCode(), '@author John Doe'));
+    }
+
     public function testProcessClassDocBlockWithNewDocBlock(): void
     {
         $code = '<?php class Foo {}';

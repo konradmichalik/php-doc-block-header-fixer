@@ -106,7 +106,8 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
             return;
         }
 
-        for ($index = 0, $limit = $tokens->count(); $index < $limit; ++$index) {
+        // Walk backwards so an insertion never shifts a structure still to be visited.
+        for ($index = $tokens->count() - 1; $index >= 0; --$index) {
             $token = $tokens[$index];
 
             if (!$token->isGivenKind([\T_CLASS, \T_INTERFACE, \T_TRAIT, \T_ENUM])) {
