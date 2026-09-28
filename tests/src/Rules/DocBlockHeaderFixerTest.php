@@ -370,7 +370,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         ]);
         $method->invoke($this->fixer, $file, $tokens);
 
-        $expected = "<?php /**\n * @author John Doe\n */class Foo {}";
+        $expected = "<?php /**\n * @author John Doe\n */\nclass Foo {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -389,7 +389,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         ]);
         $method->invoke($this->fixer, $file, $tokens);
 
-        $expected = "<?php /**\n * @author John Doe\n */class Foo {} /**\n * @author John Doe\n */class Bar {}";
+        $expected = "<?php /**\n * @author John Doe\n */\nclass Foo {} /**\n * @author John Doe\n */\nclass Bar {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -423,7 +423,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         $this->fixer->configure(['separate' => 'none', 'ensure_spacing' => false]);
         $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
 
-        $expected = "<?php /**\n * @author John Doe\n */class Foo {}";
+        $expected = "<?php /**\n * @author John Doe\n */\nclass Foo {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -619,7 +619,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         $this->fixer->configure(['separate' => 'none', 'ensure_spacing' => false]);
         $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
 
-        $expected = "<?php /**\n * @author John Doe\n */class Foo {}";
+        $expected = "<?php /**\n * @author John Doe\n */\nclass Foo {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -872,7 +872,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         $method->invoke($this->fixer, $file, $tokens);
 
         // DocBlock should be placed BEFORE final, not between readonly and class
-        $expected = "<?php /**\n * @author John Doe\n */final readonly class Foo {}";
+        $expected = "<?php /**\n * @author John Doe\n */\nfinal readonly class Foo {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -1100,7 +1100,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         ]);
         $method->invoke($this->fixer, $file, $tokens);
 
-        $expected = "<?php /**\n * @author John Doe\n */interface Foo {}";
+        $expected = "<?php /**\n * @author John Doe\n */\ninterface Foo {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -1119,7 +1119,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         ]);
         $method->invoke($this->fixer, $file, $tokens);
 
-        $expected = "<?php /**\n * @author Jane Doe\n */trait Foo {}";
+        $expected = "<?php /**\n * @author Jane Doe\n */\ntrait Foo {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -1138,7 +1138,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         ]);
         $method->invoke($this->fixer, $file, $tokens);
 
-        $expected = "<?php /**\n * @license MIT\n */enum Foo {}";
+        $expected = "<?php /**\n * @license MIT\n */\nenum Foo {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -1158,7 +1158,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         ]);
         $method->invoke($this->fixer, $file, $tokens);
 
-        $expected = "<?php /**\n * TestClass.\n *\n * @author John Doe\n */class TestClass {}";
+        $expected = "<?php /**\n * TestClass.\n *\n * @author John Doe\n */\nclass TestClass {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -1233,7 +1233,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         ]);
         $method->invoke($this->fixer, $tokens, 1, $annotations, 'TestClass');
 
-        $expected = "<?php /**\n * TestClass.\n *\n * @author John Doe\n */class TestClass {}";
+        $expected = "<?php /**\n * TestClass.\n *\n * @author John Doe\n */\nclass TestClass {}";
         self::assertSame($expected, $tokens->generateCode());
     }
 
@@ -1274,7 +1274,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         $result = $tokens->generateCode();
 
         // Regular class should have DocBlock
-        self::assertStringContainsString("/**\n * @author John Doe\n */class RegularClass", $result);
+        self::assertStringContainsString("/**\n * @author John Doe\n */\nclass RegularClass", $result);
         // Anonymous class should NOT have DocBlock (should remain as "new class")
         self::assertStringContainsString('new class {}', $result);
     }

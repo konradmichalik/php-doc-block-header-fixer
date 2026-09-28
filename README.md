@@ -130,9 +130,9 @@ return (new PhpCsFixer\Config())
 
 - `annotations` (array): DocBlock annotations to add to classes
 - `preserve_existing` (boolean, default: true): Keep everything the configuration does not mention (descriptions, other annotations, ordering). The configured annotations themselves are enforced: an existing occurrence is rewritten to the configured value and duplicates of the same tag are collapsed. One exception: an annotation sitting on the opening (`/**`) or closing (`*/`) line of an existing DocBlock is left alone, because rewriting it would take the delimiter with it. Set to `false` to discard the existing DocBlock entirely and rebuild it from the configuration.
-- `separate` (string, default: 'none'): Add blank lines ('top', 'bottom', 'both', 'none')
+- `separate` (string, default: 'none'): Blank lines around a new DocBlock. `top` ensures exactly one blank line before it, `bottom` adds one between DocBlock and structure, `both` does both, `none` adds neither. Note that `no_blank_lines_after_phpdoc` (part of `@Symfony`) removes the `bottom` blank line again
 - `add_structure_name` (boolean, default: false): Add the structure name as first line in the DocBlock. An existing first line that consists of a bare identifier followed by a dot is treated as that slot and rewritten, so a renamed class does not accumulate its former name.
-- `ensure_spacing` (boolean, default: true): Ensure proper spacing after DocBlocks to prevent conflicts with PHP-CS-Fixer rules
+- `ensure_spacing` (boolean, default: true): Move the structure onto its own line after an existing DocBlock that shares its line (e.g. `/** @internal */ final class Foo`). A new DocBlock is always followed by a newline
 
 ## 🧑‍💻 Contributing
 
