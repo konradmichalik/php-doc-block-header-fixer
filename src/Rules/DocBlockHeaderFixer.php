@@ -278,7 +278,8 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         // Surgically inject only the configured header annotations while keeping
         // every existing line verbatim (hyphenated tags, multi-line tag values,
         // free-text descriptions).
-        $newDocBlock = $this->injectHeaderAnnotations($this->expandSingleLineDocBlock($existingContent), $annotations, $structureName);
+        $indent = $this->getIndentBefore($tokens, $docBlockIndex);
+        $newDocBlock = $this->injectHeaderAnnotations($this->expandSingleLineDocBlock($existingContent, $indent), $annotations, $structureName);
 
         $tokens[$docBlockIndex] = new Token([\T_DOC_COMMENT, $newDocBlock]);
 
@@ -293,7 +294,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
      * Turns "/** Foo. *\/" into a multi-line DocBlock, so its content moves off the
      * opening and closing lines that injectHeaderAnnotations() leaves untouched.
      */
-    private function expandSingleLineDocBlock(string $docBlock): string
+    private function expandSingleLineDocBlock(string $docBlock, string $indent = ''): string
     {
         if (str_contains($docBlock, "\n")) {
             return $docBlock;
@@ -301,7 +302,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
 
         $content = trim(substr($docBlock, 3, -2), " \t*");
 
-        return '' === $content ? "/**\n */" : "/**\n * {$content}\n */";
+        return '' === $content ? "/**\n{$indent} */" : "/**\n{$indent} * {$content}\n{$indent} */";
     }
 
     /**
