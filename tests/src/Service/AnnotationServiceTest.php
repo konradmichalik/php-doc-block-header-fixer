@@ -93,11 +93,17 @@ final class AnnotationServiceTest extends TestCase
         yield 'empty key' => [['' => 'x'], 'Annotation key cannot be empty'];
         yield 'whitespace key' => [['   ' => 'x'], 'Annotation key cannot be empty'];
         yield 'key with space' => [['foo bar' => 'x'], 'Invalid annotation key "foo bar".'];
+        yield 'key with trailing line break' => [["author\n" => 'x'], 'Invalid annotation key "author'];
         yield 'key starting with digit' => [['1foo' => 'x'], 'Invalid annotation key "1foo".'];
         yield 'bool value' => [['since' => true], 'Value of annotation "since" must be a string, a list of strings or null, bool given'];
         yield 'object value' => [['since' => new stdClass()], 'Value of annotation "since" must be a string, a list of strings or null, stdClass given'];
         yield 'nested array value' => [['author' => [['x']]], 'Value of annotation "author" must be a string, a list of strings or null, array given'];
         yield 'null in list' => [['author' => [null]], 'Value of annotation "author" must be a string, a list of strings or null, null given'];
+        yield 'comment terminator in value' => [['author' => "Evil */ echo 'pwned'; /*"], 'Value of annotation "author" must not contain "*/" or line breaks'];
+        yield 'line feed in value' => [['see' => "line1\nline2"], 'Value of annotation "see" must not contain "*/" or line breaks'];
+        yield 'carriage return in value' => [['see' => "line1\rline2"], 'Value of annotation "see" must not contain "*/" or line breaks'];
+        yield 'comment terminator in list value' => [['author' => ['Jane', 'x */ y']], 'Value of annotation "author" must not contain "*/" or line breaks'];
+        yield 'comment terminator in strategy value' => [['author' => ['value' => 'x */ y', 'strategy' => 'append']], 'Value of annotation "author" must not contain "*/" or line breaks'];
         yield 'unknown strategy' => [['author' => ['value' => 'x', 'strategy' => 'merge']], 'Strategy of annotation "author" must be "enforce" or "append", "merge" given'];
         yield 'missing value' => [['author' => ['strategy' => 'append']], 'Annotation "author" must define a "value" next to its "strategy"'];
         yield 'unknown option key' => [['author' => ['value' => 'x', 'mode' => 'append']], 'Annotation "author" only accepts the keys "value" and "strategy", "mode" given'];
