@@ -38,6 +38,9 @@ One exception: an annotation sitting on the opening (`/**`) or closing (`*/`) li
 'preserve_existing' => false, // discard the existing DocBlock and rebuild it from the configuration
 ```
 
+> [!WARNING]
+> With `false`, every tag the configuration does not name is lost, including tags that static analysis depends on, such as `@template`, `@extends` and `@implements`.
+
 ## `separate`
 
 📝 Name: `separate` · 🎨 Type: `'top'|'bottom'|'both'|'none'` · 🐝 Default: `'none'`
@@ -87,3 +90,26 @@ With `add_structure_name`, rewrites an existing first line that is a bare identi
 📝 Name: `ensure_spacing` · 🎨 Type: `bool` · 🐝 Default: `true`
 
 Moves the structure onto its own line after an existing DocBlock that shares its line, e.g. `/** @internal */ final class Foo`. A newly inserted DocBlock is always followed by a newline regardless of this option.
+
+## Interplay with other fixers
+
+`general_phpdoc_annotation_remove` runs before this fixer. If both name the same tag, the remove rule deletes it and this fixer adds it back after the other tags of the DocBlock. The tag stays, moves to the end of the DocBlock on the first run, and later runs change nothing. Drop the tag from one of the two rules.
+
+```php
+'general_phpdoc_annotation_remove' => ['annotations' => ['author']], // removes @author, then the next rule adds it back
+'KonradMichalik/docblock_header_comment' => ['annotations' => ['author' => 'Jane Doe']],
+```
+
+## Known limitations
+
+A DocBlock at the top of a file counts as the class DocBlock when nothing but whitespace separates it from the class. The two cannot be told apart, so the configured annotations are enforced inside the header. With `'license' => 'MIT'`, the `@license proprietary` below is rewritten to `@license MIT`:
+
+```php
+<?php
+/**
+ * @license proprietary
+ */
+class Foo {}
+```
+
+A `namespace`, `declare` or `use` statement in between keeps the header untouched, and the class gets its own DocBlock.

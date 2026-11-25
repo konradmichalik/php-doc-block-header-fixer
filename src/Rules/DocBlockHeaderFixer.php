@@ -73,7 +73,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
 
     public function getPriority(): int
     {
-        // Run before single_line_after_imports (0) and no_extra_blank_lines (0)
+        // Run before single_line_after_imports (-11) and no_extra_blank_lines (-20)
         // Higher priority values run first
         return 1;
     }
