@@ -905,6 +905,36 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertSame($expected, $result);
     }
 
+    public function testFixAddsStructureNameWithoutAnnotations(): void
+    {
+        $tokens = Tokens::fromCode('<?php final class Foo {}');
+
+        $this->fixer->configure(['annotations' => [], 'add_structure_name' => true]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame("<?php /**\n * Foo.\n */\nfinal class Foo {}", $tokens->generateCode());
+    }
+
+    public function testFixAddsStructureNameToExistingDocBlockWithoutAnnotations(): void
+    {
+        $tokens = Tokens::fromCode("<?php\n/**\n * @internal\n */\nfinal class Foo {}");
+
+        $this->fixer->configure(['annotations' => [], 'add_structure_name' => true]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame("<?php\n/**\n * Foo.\n *\n * @internal\n */\nfinal class Foo {}", $tokens->generateCode());
+    }
+
+    public function testFixLeavesCodeUntouchedWithoutAnnotationsAndStructureName(): void
+    {
+        $tokens = Tokens::fromCode('<?php final class Foo {}');
+
+        $this->fixer->configure(['annotations' => [], 'add_structure_name' => false]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame('<?php final class Foo {}', $tokens->generateCode());
+    }
+
     public function testBuildDocBlockWithClassNameOnly(): void
     {
         $method = new ReflectionMethod($this->fixer, 'buildDocBlock');
