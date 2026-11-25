@@ -16,6 +16,7 @@ namespace KonradMichalik\PhpDocBlockHeaderFixer\Tests\Rules;
 use KonradMichalik\PhpDocBlockHeaderFixer\Rules\DocBlockHeaderFixer;
 use PhpCsFixer\ConfigurationException\InvalidFixerConfigurationException;
 use PhpCsFixer\Tokenizer\Tokens;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 use SplFileInfo;
@@ -401,7 +402,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         $method = new ReflectionMethod($this->fixer, 'processStructureDocBlock');
 
         $this->fixer->configure(['separate' => 'none', 'ensure_spacing' => false]);
-        $method->invoke($this->fixer, $tokens, 1, $annotations, 'Foo');
+        $method->invoke($this->fixer, $tokens, ['start' => 1, 'docBlock' => null, 'anonymous' => false], $annotations, 'Foo');
 
         $expected = "<?php /**\n * @author John Doe\n */\nclass Foo {}";
         self::assertSame($expected, $tokens->generateCode());
@@ -416,7 +417,7 @@ final class DocBlockHeaderFixerTest extends TestCase
         $method = new ReflectionMethod($this->fixer, 'processStructureDocBlock');
 
         $this->fixer->configure(['preserve_existing' => true]);
-        $method->invoke($this->fixer, $tokens, 2, $annotations, 'Foo');
+        $method->invoke($this->fixer, $tokens, ['start' => 3, 'docBlock' => 1, 'anonymous' => false], $annotations, 'Foo');
 
         self::assertStringContainsString('@license MIT', $tokens->generateCode());
         self::assertStringContainsString('@author John Doe', $tokens->generateCode());
@@ -431,44 +432,44 @@ final class DocBlockHeaderFixerTest extends TestCase
         $method = new ReflectionMethod($this->fixer, 'processStructureDocBlock');
 
         $this->fixer->configure(['preserve_existing' => false]);
-        $method->invoke($this->fixer, $tokens, 2, $annotations, 'Foo');
+        $method->invoke($this->fixer, $tokens, ['start' => 3, 'docBlock' => 1, 'anonymous' => false], $annotations, 'Foo');
 
         self::assertStringNotContainsString('@license MIT', $tokens->generateCode());
         self::assertStringContainsString('@author John Doe', $tokens->generateCode());
     }
 
-    public function testFindExistingDocBlockFound(): void
+    public function testLocateDeclarationDocBlockFound(): void
     {
         $code = "<?php /**\n * @author John Doe\n */ class Foo {}";
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findExistingDocBlock');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
-        $result = $method->invoke($this->fixer, $tokens, 2);
+        $result = $method->invoke($this->fixer, $tokens, 2)['docBlock'];
 
         self::assertSame(1, $result);
     }
 
-    public function testFindExistingDocBlockNotFound(): void
+    public function testLocateDeclarationDocBlockNotFound(): void
     {
         $code = '<?php class Foo {}';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findExistingDocBlock');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
-        $result = $method->invoke($this->fixer, $tokens, 1);
+        $result = $method->invoke($this->fixer, $tokens, 1)['docBlock'];
 
         self::assertNull($result);
     }
 
-    public function testFindExistingDocBlockWithModifiers(): void
+    public function testLocateDeclarationDocBlockWithModifiers(): void
     {
         $code = "<?php /**\n * @author John Doe\n */ final class Foo {}";
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findExistingDocBlock');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
-        $result = $method->invoke($this->fixer, $tokens, 3);
+        $result = $method->invoke($this->fixer, $tokens, 3)['docBlock'];
 
         self::assertSame(1, $result);
     }
@@ -702,60 +703,60 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertGreaterThanOrEqual(4, substr_count($result, "\n"));
     }
 
-    public function testFindInsertPositionSimpleClass(): void
+    public function testLocateDeclarationStartSimpleClass(): void
     {
         $code = '<?php class Foo {}';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findInsertPosition');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
-        $result = $method->invoke($this->fixer, $tokens, 1);
+        $result = $method->invoke($this->fixer, $tokens, 1)['start'];
 
         self::assertSame(1, $result);
     }
 
-    public function testFindInsertPositionWithFinalModifier(): void
+    public function testLocateDeclarationStartWithFinalModifier(): void
     {
         $code = '<?php final class Foo {}';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findInsertPosition');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
-        $result = $method->invoke($this->fixer, $tokens, 2);
+        $result = $method->invoke($this->fixer, $tokens, 2)['start'];
 
         self::assertSame(1, $result);
     }
 
-    public function testFindInsertPositionWithAbstractModifier(): void
+    public function testLocateDeclarationStartWithAbstractModifier(): void
     {
         $code = '<?php abstract class Foo {}';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findInsertPosition');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
-        $result = $method->invoke($this->fixer, $tokens, 2);
+        $result = $method->invoke($this->fixer, $tokens, 2)['start'];
 
         self::assertSame(1, $result);
     }
 
-    public function testFindInsertPositionWithAttribute(): void
+    public function testLocateDeclarationStartWithAttribute(): void
     {
         $code = '<?php #[SomeAttribute] class Foo {}';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findInsertPosition');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
-        $result = $method->invoke($this->fixer, $tokens, 2);
+        $result = $method->invoke($this->fixer, $tokens, 2)['start'];
 
         self::assertSame(1, $result);
     }
 
-    public function testFindInsertPositionWithAttributeWithParameters(): void
+    public function testLocateDeclarationStartWithAttributeWithParameters(): void
     {
         $code = "<?php #[AsEventListener(identifier: 'my-identifier')] class Foo {}";
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findInsertPosition');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
         // Find the class token index
         $classIndex = null;
@@ -766,7 +767,7 @@ final class DocBlockHeaderFixerTest extends TestCase
             }
         }
 
-        $result = $method->invoke($this->fixer, $tokens, $classIndex);
+        $result = $method->invoke($this->fixer, $tokens, $classIndex)['start'];
 
         // Should return index 1 which is the #[ token
         self::assertSame(1, $result);
@@ -793,12 +794,12 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertMatchesRegularExpression('/@author John Doe.*#\[AsEventListener/s', $result);
     }
 
-    public function testFindInsertPositionWithMultipleAttributes(): void
+    public function testLocateDeclarationStartWithMultipleAttributes(): void
     {
         $code = "<?php\n#[Attribute1]\n#[Attribute2(param: 'value')]\nclass Foo {}";
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findInsertPosition');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
         // Find the class token index
         $classIndex = null;
@@ -809,7 +810,7 @@ final class DocBlockHeaderFixerTest extends TestCase
             }
         }
 
-        $result = $method->invoke($this->fixer, $tokens, $classIndex);
+        $result = $method->invoke($this->fixer, $tokens, $classIndex)['start'];
 
         // Should return the index of the first attribute (#[Attribute1])
         // Token structure: [0]=T_OPEN_TAG, [1]=T_WHITESPACE, [2]=T_ATTRIBUTE(#[), ...
@@ -817,12 +818,12 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertTrue($tokens[$result]->isGivenKind(\T_ATTRIBUTE));
     }
 
-    public function testFindExistingDocBlockWithAttributesBetween(): void
+    public function testLocateDeclarationDocBlockWithAttributesBetween(): void
     {
         $code = "<?php\n/**\n * @author John Doe\n */\n#[SomeAttribute(param: 'value')]\nclass Foo {}";
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findExistingDocBlock');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
         // Find the class token index
         $classIndex = null;
@@ -833,7 +834,7 @@ final class DocBlockHeaderFixerTest extends TestCase
             }
         }
 
-        $result = $method->invoke($this->fixer, $tokens, $classIndex);
+        $result = $method->invoke($this->fixer, $tokens, $classIndex)['docBlock'];
 
         // Should find the DocBlock even with attribute in between
         self::assertNotNull($result);
@@ -841,12 +842,12 @@ final class DocBlockHeaderFixerTest extends TestCase
     }
 
     #[\PHPUnit\Framework\Attributes\RequiresPhp('>= 8.2')]
-    public function testFindInsertPositionWithReadonlyModifier(): void
+    public function testLocateDeclarationStartWithReadonlyModifier(): void
     {
         $code = '<?php readonly class Foo {}';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findInsertPosition');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
         // Find the class token index
         $classIndex = null;
@@ -857,19 +858,19 @@ final class DocBlockHeaderFixerTest extends TestCase
             }
         }
 
-        $result = $method->invoke($this->fixer, $tokens, $classIndex);
+        $result = $method->invoke($this->fixer, $tokens, $classIndex)['start'];
 
         // Should find the readonly modifier at index 1
         self::assertSame(1, $result);
     }
 
     #[\PHPUnit\Framework\Attributes\RequiresPhp('>= 8.2')]
-    public function testFindInsertPositionWithFinalReadonlyModifiers(): void
+    public function testLocateDeclarationStartWithFinalReadonlyModifiers(): void
     {
         $code = '<?php final readonly class Foo {}';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'findInsertPosition');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
         // Find the class token index
         $classIndex = null;
@@ -880,7 +881,7 @@ final class DocBlockHeaderFixerTest extends TestCase
             }
         }
 
-        $result = $method->invoke($this->fixer, $tokens, $classIndex);
+        $result = $method->invoke($this->fixer, $tokens, $classIndex)['start'];
 
         // Should find the final modifier at index 1 (the first modifier)
         self::assertSame(1, $result);
@@ -1340,12 +1341,12 @@ final class DocBlockHeaderFixerTest extends TestCase
         self::assertStringContainsString('new class {}', $result);
     }
 
-    public function testIsAnonymousClassDetectsAnonymousClass(): void
+    public function testLocateDeclarationAnonymousDetectsAnonymousClass(): void
     {
         $code = '<?php $obj = new class {};';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'isAnonymousClass');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
         // Find the class token index
         $classIndex = null;
@@ -1356,17 +1357,17 @@ final class DocBlockHeaderFixerTest extends TestCase
             }
         }
 
-        $result = $method->invoke($this->fixer, $tokens, $classIndex);
+        $result = $method->invoke($this->fixer, $tokens, $classIndex)['anonymous'];
 
         self::assertTrue($result);
     }
 
-    public function testIsAnonymousClassReturnsFalseForRegularClass(): void
+    public function testLocateDeclarationAnonymousReturnsFalseForRegularClass(): void
     {
         $code = '<?php class RegularClass {}';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'isAnonymousClass');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
         // Find the class token index
         $classIndex = null;
@@ -1377,17 +1378,17 @@ final class DocBlockHeaderFixerTest extends TestCase
             }
         }
 
-        $result = $method->invoke($this->fixer, $tokens, $classIndex);
+        $result = $method->invoke($this->fixer, $tokens, $classIndex)['anonymous'];
 
         self::assertFalse($result);
     }
 
-    public function testIsAnonymousClassWithAttribute(): void
+    public function testLocateDeclarationAnonymousWithAttribute(): void
     {
         $code = '<?php $obj = new #[SomeAttribute] class {};';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'isAnonymousClass');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
         // Find the class token index
         $classIndex = null;
@@ -1398,18 +1399,18 @@ final class DocBlockHeaderFixerTest extends TestCase
             }
         }
 
-        $result = $method->invoke($this->fixer, $tokens, $classIndex);
+        $result = $method->invoke($this->fixer, $tokens, $classIndex)['anonymous'];
 
         self::assertTrue($result);
     }
 
     #[\PHPUnit\Framework\Attributes\RequiresPhp('>= 8.3')]
-    public function testIsAnonymousClassWithReadonlyModifier(): void
+    public function testLocateDeclarationAnonymousWithReadonlyModifier(): void
     {
         $code = '<?php $obj = new readonly class {};';
         $tokens = Tokens::fromCode($code);
 
-        $method = new ReflectionMethod($this->fixer, 'isAnonymousClass');
+        $method = new ReflectionMethod($this->fixer, 'locateDeclaration');
 
         // Find the class token index
         $classIndex = null;
@@ -1420,7 +1421,7 @@ final class DocBlockHeaderFixerTest extends TestCase
             }
         }
 
-        $result = $method->invoke($this->fixer, $tokens, $classIndex);
+        $result = $method->invoke($this->fixer, $tokens, $classIndex)['anonymous'];
 
         // This tests line 156: continue when token is T_READONLY or T_FINAL
         self::assertTrue($result);
@@ -1621,6 +1622,70 @@ final class DocBlockHeaderFixerTest extends TestCase
         $result = $tokens->generateCode();
 
         self::assertStringContainsString(" */\n\n/**\n * @author Jane Doe\n */\nclass Demo {}", $result);
+    }
+
+    #[DataProvider('commentPlacementProvider')]
+    public function testFixHandlesCommentsAroundTheDeclaration(string $code, string $expected): void
+    {
+        $tokens = Tokens::fromCode($code);
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame($expected, $tokens->generateCode());
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function commentPlacementProvider(): iterable
+    {
+        $docBlock = "/**\n * @author Jane Doe\n */\n";
+
+        yield 'anonymous class with DocBlock stays untouched' => [
+            "<?php\n\$object = new /** @internal */ class {};\n",
+            "<?php\n\$object = new /** @internal */ class {};\n",
+        ];
+        yield 'comment between modifier and class keyword' => [
+            "<?php\nfinal /* why */ class Foo {}\n",
+            "<?php\n{$docBlock}final /* why */ class Foo {}\n",
+        ];
+        yield 'comments between several modifiers' => [
+            "<?php\nfinal /* a */ readonly /* b */ class Foo {}\n",
+            "<?php\n{$docBlock}final /* a */ readonly /* b */ class Foo {}\n",
+        ];
+        yield 'comment between attribute and class' => [
+            "<?php\n#[Attr]\n// note\nfinal class Qux {}\n",
+            "<?php\n{$docBlock}#[Attr]\n// note\nfinal class Qux {}\n",
+        ];
+        yield 'comment between attribute and interface' => [
+            "<?php\n#[Attr]\n// note\ninterface Qux {}\n",
+            "<?php\n{$docBlock}#[Attr]\n// note\ninterface Qux {}\n",
+        ];
+        yield 'header comment before class stays on top' => [
+            "<?php\n// header\nfinal class Foo {}\n",
+            "<?php\n// header\n{$docBlock}final class Foo {}\n",
+        ];
+        yield 'header comment before attribute stays on top' => [
+            "<?php\n// header\n#[Attr]\nfinal class Foo {}\n",
+            "<?php\n// header\n{$docBlock}#[Attr]\nfinal class Foo {}\n",
+        ];
+        yield 'nearest DocBlock is merged when several are stacked' => [
+            "<?php\n/**\n * a\n */\n/**\n * b\n */\nclass Foo {}\n",
+            "<?php\n/**\n * a\n */\n/**\n * b\n * @author Jane Doe\n */\nclass Foo {}\n",
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\RequiresPhp('>= 8.3')]
+    public function testFixLeavesAnonymousReadonlyClassWithDocBlockUntouched(): void
+    {
+        $code = "<?php\n\$object = new /** @internal */ readonly class {};\n";
+        $tokens = Tokens::fromCode($code);
+
+        $this->fixer->configure(['annotations' => ['author' => 'Jane Doe']]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame($code, $tokens->generateCode());
     }
 
     public function testApplyFixEnforcesConfiguredAnnotationAndStructureName(): void

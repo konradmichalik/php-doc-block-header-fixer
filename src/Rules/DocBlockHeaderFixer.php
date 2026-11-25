@@ -159,13 +159,14 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
                 continue;
             }
 
-            // Skip anonymous classes (preceded by 'new' keyword)
-            if ($token->isGivenKind(\T_CLASS) && $this->isAnonymousClass($tokens, $index)) {
+            $declaration = $this->locateDeclaration($tokens, $index);
+
+            if ($declaration['anonymous']) {
                 continue;
             }
 
             $structureName = $this->getStructureName($tokens, $index);
-            $this->processStructureDocBlock($tokens, $index, $annotations, $structureName);
+            $this->processStructureDocBlock($tokens, $declaration, $annotations, $structureName);
         }
     }
 
@@ -174,14 +175,22 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         return (bool) ($this->resolvedConfiguration['add_structure_name'] ?? false);
     }
 
-    private function isAnonymousClass(Tokens $tokens, int $classIndex): bool
+    /**
+     * Comments never end the walk, but only attributes and modifiers move `start`, so a
+     * comment above the declaration stays above a new DocBlock like a file header.
+     *
+     * @return array{start: int, docBlock: int|null, anonymous: bool}
+     */
+    private function locateDeclaration(Tokens $tokens, int $structureIndex): array
     {
-        // Look backwards for 'new' keyword
+        $start = $structureIndex;
+        $docBlock = null;
+        $anonymous = false;
         $insideAttribute = false;
-        for ($i = $classIndex - 1; $i >= 0; --$i) {
+
+        for ($i = $structureIndex - 1; $i >= 0; --$i) {
             $token = $tokens[$i];
 
-            // Skip whitespace
             if ($token->isWhitespace()) {
                 continue;
             }
@@ -195,37 +204,40 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
             // T_ATTRIBUTE '#[' marks the start of an attribute (we exit it when going backwards)
             if ($token->isGivenKind(\T_ATTRIBUTE)) {
                 $insideAttribute = false;
+                $start = $i;
                 continue;
             }
 
-            // Skip everything inside attributes
             if ($insideAttribute) {
                 continue;
             }
 
-            // Skip comments and modifiers that can appear between 'new' and 'class'
-            if ($token->isGivenKind([\T_COMMENT, \T_FINAL, \T_READONLY])) {
+            if ($token->isGivenKind(\T_DOC_COMMENT)) {
+                $docBlock ??= $i;
                 continue;
             }
 
-            // If we find 'new', it's an anonymous class
-            if ($token->isGivenKind(\T_NEW)) {
-                return true;
+            if ($token->isGivenKind([\T_FINAL, \T_ABSTRACT, \T_READONLY])) {
+                $start = $i;
+                continue;
             }
 
-            // If we hit any other meaningful token, it's not anonymous
-            break;
+            if (!$token->isGivenKind(\T_COMMENT)) {
+                $anonymous = $token->isGivenKind(\T_NEW);
+                break;
+            }
         }
 
-        return false;
+        return ['start' => $start, 'docBlock' => $docBlock, 'anonymous' => $anonymous];
     }
 
     /**
-     * @param array<string, string|array<string>|null> $annotations
+     * @param array{start: int, docBlock: int|null, anonymous: bool} $declaration
+     * @param array<string, string|array<string>|null>               $annotations
      */
-    private function processStructureDocBlock(Tokens $tokens, int $structureIndex, array $annotations, string $structureName): void
+    private function processStructureDocBlock(Tokens $tokens, array $declaration, array $annotations, string $structureName): void
     {
-        $existingDocBlockIndex = $this->findExistingDocBlock($tokens, $structureIndex);
+        $existingDocBlockIndex = $declaration['docBlock'];
         $preserveExisting = $this->resolvedConfiguration['preserve_existing'] ?? true;
 
         if (null !== $existingDocBlockIndex) {
@@ -235,7 +247,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
                 $this->replaceDocBlock($tokens, $existingDocBlockIndex, $annotations, $structureName);
             }
         } else {
-            $this->insertNewDocBlock($tokens, $structureIndex, $annotations, $structureName);
+            $this->insertNewDocBlock($tokens, $declaration['start'], $annotations, $structureName);
         }
     }
 
@@ -259,49 +271,6 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         }
 
         return '';
-    }
-
-    private function findExistingDocBlock(Tokens $tokens, int $structureIndex): ?int
-    {
-        $insideAttribute = false;
-
-        for ($i = $structureIndex - 1; $i >= 0; --$i) {
-            $token = $tokens[$i];
-
-            if ($token->isWhitespace()) {
-                continue;
-            }
-
-            // When going backwards, ']' marks the end of an attribute (we enter it)
-            if (']' === $token->getContent()) {
-                $insideAttribute = true;
-                continue;
-            }
-
-            // T_ATTRIBUTE '#[' marks the start of an attribute (we exit it when going backwards)
-            if ($token->isGivenKind(\T_ATTRIBUTE)) {
-                $insideAttribute = false;
-                continue;
-            }
-
-            // Skip everything inside attributes
-            if ($insideAttribute) {
-                continue;
-            }
-
-            if ($token->isGivenKind(\T_DOC_COMMENT)) {
-                return $i;
-            }
-
-            // A comment says nothing about whether a DocBlock exists, so it must
-            // not end the search. findInsertPosition() deliberately differs.
-            // If we hit any other meaningful token (except modifiers), stop looking
-            if (!$token->isGivenKind([\T_COMMENT, \T_FINAL, \T_ABSTRACT, \T_READONLY])) {
-                break;
-            }
-        }
-
-        return null;
     }
 
     /**
@@ -557,10 +526,9 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     /**
      * @param array<string, string|array<string>|null> $annotations
      */
-    private function insertNewDocBlock(Tokens $tokens, int $structureIndex, array $annotations, string $structureName): void
+    private function insertNewDocBlock(Tokens $tokens, int $insertIndex, array $annotations, string $structureName): void
     {
         $separate = $this->resolvedConfiguration['separate'] ?? 'none';
-        $insertIndex = $this->findInsertPosition($tokens, $structureIndex);
 
         // The structure always starts on its own line, a blank line is only added on request.
         // Both go into one whitespace token, since rules like no_blank_lines_after_phpdoc
@@ -605,53 +573,6 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         $lastNewline = strrpos($whitespace, "\n");
 
         return false === $lastNewline ? '' : substr($whitespace, $lastNewline + 1);
-    }
-
-    /**
-     * Comments terminate the backward walk on purpose: a preceding comment is
-     * indistinguishable from a file header comment, and a new DocBlock must not
-     * be placed above such a header.
-     */
-    private function findInsertPosition(Tokens $tokens, int $structureIndex): int
-    {
-        $insertIndex = $structureIndex;
-        $insideAttribute = false;
-
-        // Look backwards for attributes, final, abstract keywords
-        for ($i = $structureIndex - 1; $i >= 0; --$i) {
-            $token = $tokens[$i];
-
-            if ($token->isWhitespace()) {
-                continue;
-            }
-
-            // When going backwards, ']' marks the end of an attribute (we enter it)
-            if (']' === $token->getContent()) {
-                $insideAttribute = true;
-                continue;
-            }
-
-            // T_ATTRIBUTE '#[' marks the start of an attribute (we exit it when going backwards)
-            if ($token->isGivenKind(\T_ATTRIBUTE)) {
-                $insideAttribute = false;
-                $insertIndex = $i;
-                continue;
-            }
-
-            // Skip everything inside attributes
-            if ($insideAttribute) {
-                continue;
-            }
-
-            if ($token->isGivenKind([\T_FINAL, \T_ABSTRACT, \T_READONLY])) {
-                $insertIndex = $i;
-                continue;
-            }
-
-            break;
-        }
-
-        return $insertIndex;
     }
 
     /**
