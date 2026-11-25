@@ -92,7 +92,7 @@ final class ComposerServiceTest extends TestCase
         file_put_contents($invalidPath, '{}');
 
         // Make file unreadable (this may not work on all systems, especially Windows)
-        chmod($invalidPath, 0000);
+        chmod($invalidPath, 0o000);
 
         try {
             // Only run this test if we can actually make the file unreadable
@@ -103,11 +103,11 @@ final class ComposerServiceTest extends TestCase
                 @ComposerService::readComposerJson($invalidPath);
             } else {
                 // If we can't make the file unreadable, mark test as skipped
-                $this->markTestSkipped('Unable to create unreadable file on this platform');
+                self::markTestSkipped('Unable to create unreadable file on this platform');
             }
         } finally {
             // Restore permissions before deletion
-            @chmod($invalidPath, 0644);
+            @chmod($invalidPath, 0o644);
             @unlink($invalidPath);
         }
     }
