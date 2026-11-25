@@ -200,6 +200,19 @@ final class DocBlockHeaderFixerTest extends TestCase
         );
     }
 
+    public function testApplyFixAppendStrategyIgnoresWhitespaceDifferencesWhenComparing(): void
+    {
+        $code = "<?php\n/**\n * @author  Jane   <j@x.de>\n */\nfinal class Foo {}";
+        $tokens = Tokens::fromCode($code);
+
+        $this->fixer->configure(['annotations' => [
+            'author' => ['value' => 'Jane <j@x.de>', 'strategy' => 'append'],
+        ]]);
+        $this->fixer->fix(new SplFileInfo(__FILE__), $tokens);
+
+        self::assertSame($code, $tokens->generateCode());
+    }
+
     public function testApplyFixAppendStrategyDoesNotDuplicatePresentValue(): void
     {
         $code = "<?php\n/**\n * @author Konrad <k@x.de>\n * @author Someone Else <s@e.de>\n */\nfinal class Foo {}";

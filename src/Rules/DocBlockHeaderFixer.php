@@ -411,11 +411,12 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
      */
     private function missingAnnotationLines(array $lines, array $annotationLines): array
     {
-        $existing = array_map(static fn (string $line): string => trim($line, " \t\r\n/*"), $lines);
+        $normalize = static fn (string $line): string => (string) preg_replace('/\s+/', ' ', trim($line, " \t\r\n/*"));
+        $existing = array_map($normalize, $lines);
 
         return array_values(array_filter(
             $annotationLines,
-            static fn (string $annotationLine): bool => !in_array(trim($annotationLine, " \t\r\n/*"), $existing, true),
+            static fn (string $annotationLine): bool => !in_array($normalize($annotationLine), $existing, true),
         ));
     }
 
