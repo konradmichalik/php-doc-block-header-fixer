@@ -90,7 +90,7 @@ The same happens for interfaces, traits and enums. See [Usage](docs/usage.md) fo
 | Topic | What's inside |
 |-------|---------------|
 | [Usage](docs/usage.md) | Registering the fixer: plain array, object-oriented builder, and `fromComposer()` autodiscovery |
-| [Configuration](docs/configuration.md) | Every option with its type, default and effect |
+| [Configuration](docs/configuration.md) | Every option with its type, default and effect, plus interplay with other fixers and known limitations |
 
 ## 🧑‍💻 Contributing
 
