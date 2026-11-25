@@ -25,7 +25,7 @@ PHP-CS-Fixer ships rules for DocBlock content and spacing, but none of them add 
 
 ### Requirements
 
-- PHP 8.2, 8.3, 8.4 or 8.5
+- PHP 8.2, 8.3, 8.4, 8.5 or 8.6
 - `ext-tokenizer` (bundled with PHP by default)
 - `friendsofphp/php-cs-fixer` ^3.14 (installed automatically as a dependency)
 

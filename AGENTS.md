@@ -7,7 +7,7 @@ Guidance for coding agents working in this repository.
 A PHP CS Fixer custom rule library. It provides the `DocBlockHeaderFixer` rule, which adds configurable DocBlock annotations (author, license, and similar) before class-like declarations.
 
 - Package: `konradmichalik/php-doc-block-header-fixer`, license GPL-3.0-or-later
-- PHP `~8.2 || ~8.3 || ~8.4 || ~8.5`, `friendsofphp/php-cs-fixer` `^3.14`, `ext-tokenizer`
+- PHP `~8.2 || ~8.3 || ~8.4 || ~8.5 || ~8.6`, `friendsofphp/php-cs-fixer` `^3.14`, `ext-tokenizer`
 
 ## Structure
 
@@ -37,7 +37,7 @@ composer test            # phpunit without coverage
 composer test:coverage   # XDEBUG_MODE=coverage phpunit, reports to .build/coverage/
 ```
 
-Locally, coverage needs Xdebug. CI runs the tests through the shared reusable workflow `tests-php.yml` on PHP 8.2, 8.3, 8.4 and 8.5, and lint plus static analysis through the shared `cgl.yml`. Both are thin wrappers, there is no inline CI logic here.
+Locally, coverage needs Xdebug. CI runs the tests through the shared reusable workflow `tests-php.yml` on PHP 8.2, 8.3, 8.4, 8.5 and 8.6, and lint plus static analysis through the shared `cgl.yml`. Both are thin wrappers, there is no inline CI logic here.
 
 ## Code style and static analysis
 
