@@ -147,7 +147,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
     protected function applyFix(SplFileInfo $file, Tokens $tokens): void
     {
         $annotations = $this->annotations;
-        if ([] === $annotations) {
+        if ([] === $annotations && !$this->shouldAddStructureName()) {
             return;
         }
 
@@ -167,6 +167,11 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
             $structureName = $this->getStructureName($tokens, $index);
             $this->processStructureDocBlock($tokens, $index, $annotations, $structureName);
         }
+    }
+
+    private function shouldAddStructureName(): bool
+    {
+        return (bool) ($this->resolvedConfiguration['add_structure_name'] ?? false);
     }
 
     private function isAnonymousClass(Tokens $tokens, int $classIndex): bool
@@ -387,8 +392,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
             }
         }
 
-        $addStructureName = $this->resolvedConfiguration['add_structure_name'] ?? false;
-        if ($addStructureName && '' !== $structureName) {
+        if ($this->shouldAddStructureName() && '' !== $structureName) {
             $lines = $this->applyStructureNameSummary($lines, $structureName, $indent, $prefix);
         }
 
@@ -657,8 +661,7 @@ final class DocBlockHeaderFixer extends AbstractFixer implements ConfigurableFix
         $prefix = ' * ';
         $lines = ['/**'];
 
-        $addStructureName = $this->resolvedConfiguration['add_structure_name'] ?? false;
-        if ($addStructureName && '' !== $structureName) {
+        if ($this->shouldAddStructureName() && '' !== $structureName) {
             $lines[] = $prefix.$structureName.'.';
 
             // Blank line after the structure name, compatible with phpdoc_separation
