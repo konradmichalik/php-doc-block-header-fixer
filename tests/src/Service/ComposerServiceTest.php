@@ -137,6 +137,15 @@ final class ComposerServiceTest extends TestCase
 
         $result = ComposerService::extractLicense($composerData);
 
+        self::assertSame('(MIT or Apache-2.0)', $result);
+    }
+
+    public function testExtractLicenseWithSingleEntryArray(): void
+    {
+        $composerData = ['license' => ['MIT']];
+
+        $result = ComposerService::extractLicense($composerData);
+
         self::assertSame('MIT', $result);
     }
 

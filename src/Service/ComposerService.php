@@ -15,6 +15,7 @@ namespace KonradMichalik\PhpDocBlockHeaderFixer\Service;
 
 use RuntimeException;
 
+use function count;
 use function file_exists;
 use function file_get_contents;
 use function is_array;
@@ -64,9 +65,19 @@ final class ComposerService
             return null;
         }
 
-        return is_array($composerData['license'])
-            ? $composerData['license'][0] ?? null
-            : $composerData['license'];
+        $license = $composerData['license'];
+
+        if (!is_array($license)) {
+            return $license;
+        }
+
+        $licenses = array_values($license);
+
+        return match (count($licenses)) {
+            0 => null,
+            1 => $licenses[0],
+            default => '('.implode(' or ', $licenses).')',
+        };
     }
 
     /**
