@@ -124,7 +124,7 @@ final class AnnotationService
             throw new InvalidArgumentException('Annotation key cannot be empty');
         }
 
-        if (1 !== preg_match('/^[a-zA-Z][a-zA-Z0-9_-]*$/', $tag)) {
+        if (1 !== preg_match('/^[a-zA-Z][a-zA-Z0-9_-]*$/D', $tag)) {
             throw new InvalidArgumentException(sprintf('Invalid annotation key "%s". Must start with letter and contain only letters, numbers, underscore, or dash.', $tag));
         }
     }
@@ -132,6 +132,10 @@ final class AnnotationService
     private static function normalizeString(string $tag, mixed $value): string
     {
         if (is_string($value)) {
+            if (1 === preg_match('~\*/|[\r\n]~', $value)) {
+                throw new InvalidArgumentException(sprintf('Value of annotation "%s" must not contain "*/" or line breaks', $tag));
+            }
+
             return $value;
         }
 
